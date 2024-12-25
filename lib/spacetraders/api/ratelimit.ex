@@ -9,7 +9,8 @@ defmodule Spacetraders.API.Ratelimit do
     GenServer.call(server, :reserve, :infinity) 
   end
 
-  def start_link([opts]) do
+
+  def start_link(opts) do
     limiters = Keyword.get(opts, :limiters, [])
 
     name = Keyword.get(opts, :name, nil)
@@ -43,6 +44,7 @@ defmodule Spacetraders.API.Ratelimit do
     if wait == 0 do
       {:ok, state}
     else
+      # assertion
       false = wait == :infinity
 
       Process.sleep(wait) 
@@ -53,13 +55,13 @@ defmodule Spacetraders.API.Ratelimit do
   defp acquire_now(state) do
     state = update_last_resets(state)
 
-    {state, wait} = Enum.reverse(state) |> Enum.reduce({[], :infinity}, fn(r, {state, wait}) ->
+    {state, wait} = Enum.reduce(state, {[], :infinity}, fn(r, {state, wait}) ->
       if wait == 0 do
         {[r | state], wait}
       else
         if r.consumed < r.limit do
           r = %{r | consumed: r.consumed + 1}
-          {[r | state], wait}
+          {[r | state], 0}
         else
           new_state = [r | state]
 
@@ -70,12 +72,12 @@ defmodule Spacetraders.API.Ratelimit do
           end 
         end 
       end 
-    end) |> dbg
+    end)
 
     # assertion
     false = wait == :infinity
 
-    {state, wait}
+    {state |> Enum.reverse(), wait}
   end
 
   defp update_last_resets(state) do
