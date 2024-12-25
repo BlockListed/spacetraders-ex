@@ -15,7 +15,7 @@ defmodule Spacetraders.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Spacetraders.Application, []},
+      mod: {Spacetraders.Application, []}
     ]
   end
 
