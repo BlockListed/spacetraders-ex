@@ -99,45 +99,49 @@ defmodule Spacetraders.API do
     {:error, "#{status} - #{body}"}
   end
 
-  defp map_res(res, f) when is_function(f, 1) do
-    case res do
-      {:ok, a} -> {:ok, f.(a)}
-      {:error, _} -> res
-    end
-  end
-
   def cooldown_ms(data) do
-    wait_time =
-      cond do
-        Map.has_key?(data, "cooldown") ->
-          cooldown = data["cooldown"]
+    nav_wait =
+      if Map.has_key?(data, "nav") do
+        nav = data["nav"]
 
-          expiration = DateTime.from_iso8601(cooldown["expiration"])
+        if nav["status"] == "IN_TRANSIT" do
+          {:ok, arrival, _} = DateTime.from_iso8601(nav["route"]["arrival"])
           now = DateTime.now!("Etc/UTC")
 
-          DateTime.diff(expiration, now, :millisecond)
-
-        Map.has_key?(data, "nav") ->
-          nav = data["nav"]
-
-          if nav["status"] == "IN_TRANSIT" do
-            arrival = DateTime.from_iso8601(nav["route"]["arrival"])
-            now = DateTime.now!("Etc/UTC")
-
-            DateTime.diff(arrival, now, :millisecond)
-          else
-            0
-          end
-
-        true ->
+          DateTime.diff(arrival, now, :millisecond)
+        else
           0
+        end
+      else
+        0
       end
 
-    if wait_time < 0 do
-      0
+    cooldown_wait =
+      if Map.has_key?(data, "cooldown") do
+        cooldown = data["cooldown"]
+
+        if Map.has_key?(cooldown, "expiration") do
+        {:ok, expiration, _} = DateTime.from_iso8601(cooldown["expiration"])
+        now = DateTime.now!("Etc/UTC")
+
+        DateTime.diff(expiration, now, :millisecond)
+
+else
+0
+        end
+
+      else
+        0
+      end
+
+    cd = [nav_wait, cooldown_wait]
+    |> Enum.map(&if &1 < 0, do: 0, else: &1)
+    |> Enum.max()
+
+    if cd > 0 do
+      cd + 100
     else
-      # buffer time
-      wait_time + 100
+      cd
     end
   end
 end
