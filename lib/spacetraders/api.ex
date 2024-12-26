@@ -38,7 +38,23 @@ defmodule Spacetraders.API do
   end
 
   def get_waypoint(waypoint) do
-    cvt(Client.get_waypoint(waypoint))
+    case Spacetraders.API.Caching.Waypoints.get_waypoint(waypoint) do
+      {:some, waypoint_info} ->
+        {:ok, waypoint_info}
+
+      :none ->
+        res = cvt(Client.get_waypoint(waypoint))
+
+        case res do
+          {:ok, waypoint_info} ->
+            Spacetraders.API.Caching.Waypoints.populate_waypoint(waypoint, waypoint_info)
+
+          _ ->
+            nil
+        end
+
+        res
+    end
   end
 
   def get_market(waypoint) do
@@ -121,22 +137,21 @@ defmodule Spacetraders.API do
         cooldown = data["cooldown"]
 
         if Map.has_key?(cooldown, "expiration") do
-        {:ok, expiration, _} = DateTime.from_iso8601(cooldown["expiration"])
-        now = DateTime.now!("Etc/UTC")
+          {:ok, expiration, _} = DateTime.from_iso8601(cooldown["expiration"])
+          now = DateTime.now!("Etc/UTC")
 
-        DateTime.diff(expiration, now, :millisecond)
-
-else
-0
+          DateTime.diff(expiration, now, :millisecond)
+        else
+          0
         end
-
       else
         0
       end
 
-    cd = [nav_wait, cooldown_wait]
-    |> Enum.map(&if &1 < 0, do: 0, else: &1)
-    |> Enum.max()
+    cd =
+      [nav_wait, cooldown_wait]
+      |> Enum.map(&if &1 < 0, do: 0, else: &1)
+      |> Enum.max()
 
     if cd > 0 do
       cd + 100

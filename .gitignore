@@ -23,3 +23,6 @@ spacetraders-*.tar
 /tmp/
 
 .env
+
+waypoint_cache.dets
+markets.jsonl

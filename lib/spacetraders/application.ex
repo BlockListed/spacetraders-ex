@@ -10,6 +10,8 @@ defmodule Spacetraders.Application do
        ]}
     ]
 
+    Spacetraders.API.Caching.Waypoints.init_table()
+
     IO.puts("Starting Spacetraders")
 
     Supervisor.start_link(children, strategy: :one_for_one)
