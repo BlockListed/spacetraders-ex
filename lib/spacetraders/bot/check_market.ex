@@ -98,7 +98,7 @@ defmodule Spacetraders.Bot.CheckMarkets do
       "data" => data,
     }
 
-    :ok = IO.binwrite(state.file, [JSON.encode_to_iodata!(info), "\n"])
+    :ok = IO.binwrite(state.file, [Jason.encode_to_iodata!(info), "\n"])
 
     {:noreply, state}
   end
