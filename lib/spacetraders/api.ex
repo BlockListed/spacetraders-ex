@@ -158,13 +158,12 @@ defmodule Spacetraders.API do
 
     cd =
       [nav_wait, cooldown_wait]
-      |> Enum.map(&if &1 < 0, do: 0, else: &1)
       |> Enum.max()
 
     if cd > 0 do
       cd + 100
     else
-      cd
+      0
     end
   end
 
