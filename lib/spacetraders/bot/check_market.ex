@@ -118,7 +118,7 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
 
   def do_search(sup, routes) do
     Task.Supervisor.async_stream(sup, routes, &check_route/1,
-      concurrency: 1024,
+      max_concurrency: 1024,
       ordered: false,
       timeout: :infinity
     )
