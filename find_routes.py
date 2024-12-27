@@ -10,18 +10,18 @@ print(markets)
 trades = []
 
 for market in markets:
-    exports = map(lambda ex: ex["symbol"], market["data"]["exports"])
+    exports = map(lambda ex: ex["symbol"], market["exports"])
 
-    buy_trade_goods = market["data"]["tradeGoods"]
+    buy_trade_goods = market["tradeGoods"]
 
     for export in exports:
         for possible_market in markets:
-            possible_imports = map(lambda im: im["symbol"], possible_market["data"]["imports"])
+            possible_imports = map(lambda im: im["symbol"], possible_market["imports"])
 
             if export in possible_imports:
-                print(f"{export} from {market['waypoint']} to {possible_market['waypoint']}")
+                print(f"{export} from {market['symbol']} to {possible_market['symbol']}")
 
-                sell_trade_goods = possible_market["data"]["tradeGoods"]
+                sell_trade_goods = possible_market["tradeGoods"]
 
                 buy_price = 0
                 sell_price = 0
@@ -43,8 +43,8 @@ for market in markets:
                 print(f"Margin: {margin}")
 
                 trades.append({
-                    "from": market["waypoint"],
-                    "to": possible_market["waypoint"],
+                    "from": market["symbol"],
+                    "to": possible_market["symbol"],
                     "symbol": export,
                     "buy_price": buy_price,
                     "sell_price": sell_price,
@@ -52,14 +52,14 @@ for market in markets:
                     "margin": margin,
                 })
 
-cheapest = None
+best = None
 
 for trade in trades:
-    if cheapest == None:
-        cheapest = trade
+    if best == None:
+        best = trade
         continue
 
-    if cheapest["profit_per_unit"] < trade["profit_per_unit"]:
-        cheapest = trade
+    if best["profit_per_unit"] < trade["profit_per_unit"]:
+        best = trade
 
-print(cheapest)
+print(best)
