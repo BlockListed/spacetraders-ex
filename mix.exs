@@ -25,7 +25,8 @@ defmodule Spacetraders.MixProject do
       {:tesla, "~> 1.13"},
       {:jason, "~> 1.4"},
       {:finch, "~> 0.19.0"},
-      {:dotenvy, "~> 0.9.0"}
+      {:dotenvy, "~> 0.9.0"},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 end

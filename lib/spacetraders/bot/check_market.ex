@@ -1,145 +1,194 @@
-defmodule Spacetraders.Bot.CheckMarkets.Manager do
-  use GenServer
-
+defmodule Spacetraders.Bot.CheckMarket do
   alias Spacetraders.API
+  use Supervisor
 
   def start_link(opts) do
-    name = Keyword.get(opts, :name)
-    system = Keyword.fetch!(opts, :system)
-    ship = Keyword.fetch!(opts, :ship)
-    file = Keyword.get(opts, :file, "./markets.jsonl")
-
-    opts =
-      if name != nil do
-        [name: name]
-      else
-        []
-      end
-
-    GenServer.start_link(__MODULE__, {system, ship, file}, opts)
+    Supervisor.start_link(__MODULE__, [], opts)
   end
 
-  @enforce_keys [:file, :to_check]
-  defstruct [
-    :file,
-    :to_check,
-    :system,
-    checking: [],
-    checked: []
-  ]
+  def init([]) do
+    children = [
+      {DynamicSupervisor, name: Spacetraders.Bot.CheckMarket.SearchSupervisor},
+      {Spacetraders.Bot.CheckMarket.Manager, name: Spacetraders.Bot.CheckMarket.Manager}
+    ]
 
-  def init({system, ship, file}) do
-    file = File.open!(file, [:append])
-
-    {:ok, market_waypoints} = API.get_markets(system)
-
-    markets = market_waypoints |> Enum.map(& &1["symbol"])
-
-    {:ok, ship_data} = API.get_ship(ship) |> dbg
-
-    case ship_data["nav"]["status"] do
-      "DOCKED" ->
-        {:ok, _} = API.orbit_ship(ship)
-
-      "IN_TRANSIT" ->
-        cooldown = API.cooldown_ms(ship_data) |> dbg
-        Process.sleep(cooldown)
-
-      "IN_ORBIT" ->
-        nil
-    end
-
-    destination = ship_data["nav"]["route"]["destination"]
-
-    server = self()
-
-    {:ok, _} = Task.start_link(fn -> probe_code(server, ship, destination["symbol"]) end)
-
-    {:ok, %__MODULE__{file: file, to_check: markets}}
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
-  defp get_market(server, curr) do
-    GenServer.call(server, {:get_market, curr})
+  def add_check_ship(ship) do
+    GenServer.cast(Spacetraders.Bot.CheckMarket.Manager, {:add_ship, ship})
   end
 
-  def progress(server) do
-    GenServer.call(server, :progress)
+  def check_system(system) do
+    GenServer.cast(Spacetraders.Bot.CheckMarket.Manager, {:check_system, system})
   end
 
-  defp deliver_market_data(server, market, data) do
-    GenServer.cast(server, {:deliver_market_data, market, data})
+  def register_all_probes() do
+    {:ok, ships} = API.list_ships()
+
+    ships
+    |> Stream.filter(&(&1["frame"]["symbol"] == "FRAME_PROBE"))
+    |> Stream.map(& &1["symbol"])
+    |> Enum.each(&add_check_ship/1)
+  end
+end
+
+defmodule Spacetraders.Bot.CheckMarket.Manager do
+  alias Spacetraders.API
+  use GenServer
+
+  defmodule State do
+    defstruct ships: []
   end
 
-  def handle_call({:get_market, curr}, _, state) when is_binary(curr) do
-    closest_market =
-      state.to_check
-      |> Stream.filter(&(&1 != curr))
-      |> closest_market(curr)
-
-    state = start_checking(state, closest_market)
-
-    {:reply, closest_market, state}
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, [], opts)
   end
 
-  def handle_call(:progress, _, state) do
-    checked = Enum.count(state.checked)
-    total_markets = Enum.count(state.to_check) + checked
-
-    {:reply, "Checked #{checked} out of #{total_markets}!", state}
+  def init([]) do
+    {:ok, %State{}}
   end
 
-  def handle_cast({:deliver_market_data, market, data}, state) do
-    state = %{state | checking: state.checking -- [market]}
-    state = %{state | checked: [market | state.checked]}
-
-    info = %{
-      "waypoint" => market,
-      "data" => data
-    }
-
-    :ok = IO.binwrite(state.file, [Jason.encode_to_iodata!(info), "\n"])
-
+  def handle_cast({:add_ship, ship}, state) do
+    state = %{state | ships: [ship | state.ships]}
     {:noreply, state}
   end
 
-  @spec start_checking(%__MODULE__{}, String.t()) :: %__MODULE__{}
-  defp start_checking(state, market) do
-    state = %{state | to_check: state.to_check -- [market]}
-    state = %{state | checking: [market | state.checking]}
+  def handle_cast({:check_system, system}, state) do
+    {:ok, markets} = API.get_markets(system)
+    markets = markets |> Enum.map(& &1["symbol"])
 
-    state
+    avail_ships =
+      state.ships
+      |> Enum.filter(fn ship ->
+        {:ok, ship_data} = API.get_ship(ship)
+        ship_data["nav"]["route"]["destination"]["systemSymbol"] == system
+      end)
+
+    :ok =
+      File.write!(
+        "test_data.json",
+        Jason.encode_to_iodata!(%{markets: markets, ships: avail_ships})
+      )
+
+    state = %{state | ships: state.ships -- avail_ships}
+
+    {:ok, _} =
+      DynamicSupervisor.start_child(
+        Spacetraders.Bot.CheckMarket.SearchSupervisor,
+        {Spacetraders.Bot.CheckMarket.SearchManager, ships: avail_ships, markets: markets}
+      )
+
+    {:noreply, state}
+  end
+end
+
+defmodule Spacetraders.Bot.CheckMarket.SearchManager do
+  alias Spacetraders.Bot.CheckMarket
+  alias Spacetraders.API
+  require Logger
+
+  defmodule Search do
+    @enforce_keys [:task, :ship]
+    defstruct [:task, :ship]
+
+    @type t :: %Search{task: Task.t(), ship: String.t()}
   end
 
-  defp closest_market(markets, curr) do
-    Enum.reduce(markets, {nil, :infinity}, fn new_market, {market, dist} ->
-      new_dist = API.distance_between(curr, new_market)
+  def start_link(opts) do
+    ships = Keyword.fetch!(opts, :ships)
+    markets = Keyword.fetch!(opts, :markets) |> dbg
 
-      if market != nil do
-        if new_dist < dist do
-          {new_market, new_dist}
-        else
-          {market, dist}
+    with {:ok, sup} <- Supervisor.start_link([], strategy: :one_for_all),
+         {:ok, task_sup} <- Supervisor.start_child(sup, Task.Supervisor) do
+      Supervisor.start_child(sup, {Task, fn -> do_search(task_sup, ships, markets) end})
+    else
+      e -> e
+    end
+  end
+
+  def child_spec(init_arg) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [init_arg]},
+      type: :supervisor
+    }
+  end
+
+  @spec do_search(pid(), [String.t()], [String.t()], [Search.t()]) :: nil
+  def do_search(sup, ships, markets, searches \\ []) do
+    cond do
+      !Enum.empty?(markets) && !Enum.empty?(ships) ->
+        [ship_to_assign | ships] = ships
+
+        ship_to_assign |> dbg
+
+        {:ok, ship} = API.get_ship(ship_to_assign)
+
+        ship_location = ship["nav"]["route"]["destination"]["symbol"] |> dbg
+
+        if ship["nav"]["status"] == "DOCKED" do
+          API.orbit_ship(ship_to_assign)
         end
-      else
-        {new_market, new_dist}
-      end
-    end)
-    |> elem(0)
+
+        closest_market =
+          markets
+          |> Enum.map(&{&1, API.distance_between(ship_location, &1)})
+          |> Enum.min_by(&elem(&1, 1))
+          |> elem(0)
+
+        markets = markets -- [closest_market]
+
+        true = API.extract_system(ship_location) == API.extract_system(closest_market)
+
+        task = Task.Supervisor.async(sup, fn -> check_market(ship, closest_market) end)
+
+        new_search = %Search{task: task, ship: ship_to_assign}
+
+        do_search(sup, ships, markets, [new_search | searches])
+
+      !Enum.empty?(searches) ->
+        completed =
+          searches
+          |> Enum.map(& &1.task)
+          |> Task.yield_many(limit: 1, timeout: 10000)
+          |> Enum.filter(&(elem(&1, 1) != nil))
+
+        case completed do
+          [{task, {:ok, market_data}}] ->
+            Logger.info("Got market data", market_data: market_data)
+
+            Spacetraders.Market.enter_market_data(market_data)
+
+            %Search{ship: ship} = Enum.find(searches, &(&1.task == task))
+            searches = Enum.filter(searches, &(&1.task != task))
+
+            do_search(sup, [ship | ships], markets, searches)
+
+          [] ->
+            do_search(sup, ships, markets, searches)
+        end
+
+      Enum.empty?(markets) && Enum.empty?(searches) ->
+        Enum.each(ships, &CheckMarket.add_check_ship/1)
+        Logger.info("Completed search")
+        nil
+    end
   end
 
-  defp probe_code(server, ship, curr) do
-    next_market = get_market(server, curr)
+  def check_market(ship, market) do
+    Process.sleep(API.cooldown_ms(ship))
 
-    if next_market != curr do
-      {:ok, res} = API.navigate_ship(ship, next_market) |> dbg
+    if ship["nav"]["route"]["destination"]["symbol"] != market do
+      {:ok, nav} = API.navigate_ship(ship["symbol"], market) |> dbg
 
-      Process.sleep(API.cooldown_ms(res))
+      Process.sleep(API.cooldown_ms(nav))
     end
 
-    {:ok, market_data} = API.get_market(next_market)
+    {:ok, market_data} = API.get_market(market)
 
-    deliver_market_data(server, next_market, market_data)
+    true = Map.has_key?(market_data, "tradeGoods")
 
-    probe_code(server, ship, next_market)
+    market_data
   end
 end

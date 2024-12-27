@@ -7,10 +7,11 @@ defmodule Spacetraders.Application do
        limiters: [
          %Spacetraders.API.Ratelimit{limit: 2, period_ms: 1100},
          %Spacetraders.API.Ratelimit{limit: 30, period_ms: 61_000}
-       ]}
+       ]},
+      Spacetraders.Market,
+      Spacetraders.API.Caching.Waypoints,
+      {Spacetraders.Bot.CheckMarket, name: Spacetraders.Bot.CheckMarket}
     ]
-
-    Spacetraders.API.Caching.Waypoints.init_table()
 
     IO.puts("Starting Spacetraders")
 
