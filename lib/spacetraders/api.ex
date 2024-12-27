@@ -13,6 +13,7 @@ defmodule Spacetraders.API do
     paginated(&Client.list_ships/1)
   end
 
+  @spec get_ship(String.t()) :: {:ok, map()} | {:error, String.t()}
   def get_ship(ship) do
     cvt(Client.get_ship(ship))
   end
@@ -69,10 +70,12 @@ defmodule Spacetraders.API do
     cvt(Client.get_jump_gate(waypoint))
   end
 
+  @spec orbit_ship(String.t()) :: any()
   def orbit_ship(ship) do
     cvt(Client.orbit_ship(ship))
   end
 
+  @spec dock_ship(String.t()) :: any()
   def dock_ship(ship) do
     cvt(Client.dock_ship(ship))
   end
@@ -81,8 +84,12 @@ defmodule Spacetraders.API do
     cvt(Client.navigate_ship(ship, waypoint))
   end
 
+  def purchase_ship(shipyard, ship_type) do
+    cvt(Client.purchase_ship(shipyard, ship_type))
+  end
+
   defp cvt({_, %Tesla.Env{}} = resp) do
-    with {:ok, %Tesla.Env{status: 200, body: body}} <- resp do
+    with {:ok, %Tesla.Env{status: status, body: body}} when status in 200..299 <- resp do
       {:ok, body["data"]}
     else
       {:ok, resp} -> error(resp)
@@ -90,7 +97,8 @@ defmodule Spacetraders.API do
   end
 
   defp paginated(f, after_page \\ 0, acc \\ []) when is_function(f, 1) do
-    with {:ok, %Tesla.Env{status: 200, body: body}} <- f.(after_page + 1) do
+    with {:ok, %Tesla.Env{status: status, body: body}} when status in 200..299 <-
+           f.(after_page + 1) do
       meta = body["meta"]
 
       is_last = meta["total"] <= meta["page"] * meta["limit"]
@@ -160,7 +168,8 @@ defmodule Spacetraders.API do
     end
   end
 
-  def distance_between(wp1_sym, wp2_sym) do
+  @spec distance_between(String.t(), String.t()) :: number()
+  def distance_between(wp1_sym, wp2_sym) when is_binary(wp1_sym) and is_binary(wp2_sym) do
     {:ok, wp1} = get_waypoint(wp1_sym)
     {:ok, wp2} = get_waypoint(wp2_sym)
 
@@ -171,5 +180,11 @@ defmodule Spacetraders.API do
     dy = y2 - y1
 
     :math.sqrt(dx * dx + dy * dy)
+  end
+
+  def extract_system(waypoint) do
+    [system_one, system_two, _] = String.split(waypoint, "-")
+
+    Enum.join([system_one, system_two], "-")
   end
 end

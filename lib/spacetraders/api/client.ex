@@ -79,19 +79,20 @@ defmodule Spacetraders.API.Client do
 
   def navigate_ship(ship, waypoint) do
     post("/my/ships/#{ship}/navigate", %{
-      "waypointSymbol" => waypoint
+      waypointSymbol: waypoint
+    })
+  end
+
+  def purchase_ship(shipyard, ship_type) do
+    post("/my/ships", %{
+      waypointSymbol: shipyard,
+      shipType: ship_type
     })
   end
 
   defp waypoint_url(waypoint) do
-    system = extract_system(waypoint)
+    system = Spacetraders.API.extract_system(waypoint)
 
     "/systems/#{system}/waypoints/#{waypoint}"
-  end
-
-  def extract_system(waypoint) do
-    [system_one, system_two, _] = String.split(waypoint, "-")
-
-    Enum.join([system_one, system_two], "-")
   end
 end
