@@ -159,4 +159,17 @@ defmodule Spacetraders.API do
       cd
     end
   end
+
+  def distance_between(wp1_sym, wp2_sym) do
+    {:ok, wp1} = get_waypoint(wp1_sym)
+    {:ok, wp2} = get_waypoint(wp2_sym)
+
+    {x1, y1} = {wp1["x"], wp1["y"]}
+    {x2, y2} = {wp2["x"], wp2["y"]}
+
+    dx = x2 - x1
+    dy = y2 - y1
+
+    :math.sqrt(dx * dx + dy * dy)
+  end
 end

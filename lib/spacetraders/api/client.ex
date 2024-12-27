@@ -89,7 +89,7 @@ defmodule Spacetraders.API.Client do
     "/systems/#{system}/waypoints/#{waypoint}"
   end
 
-  defp extract_system(waypoint) do
+  def extract_system(waypoint) do
     [system_one, system_two, _] = String.split(waypoint, "-")
 
     Enum.join([system_one, system_two], "-")

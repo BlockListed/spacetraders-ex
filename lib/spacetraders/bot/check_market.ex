@@ -1,4 +1,4 @@
-defmodule Spacetraders.Bot.CheckMarkets do
+defmodule Spacetraders.Bot.CheckMarkets.Manager do
   use GenServer
 
   alias Spacetraders.API
@@ -19,13 +19,21 @@ defmodule Spacetraders.Bot.CheckMarkets do
     GenServer.start_link(__MODULE__, {system, ship, file}, opts)
   end
 
-  @enforce_keys [:file, :ship_pid, :to_check, :positions]
-  defstruct [:file, :ship_pid, :to_check, :positions, checked: []]
+  @enforce_keys [:file, :to_check]
+  defstruct [
+    :file,
+    :to_check,
+    :system,
+    checking: [],
+    checked: []
+  ]
 
   def init({system, ship, file}) do
     file = File.open!(file, [:append])
 
     {:ok, market_waypoints} = API.get_markets(system)
+
+    markets = market_waypoints |> Enum.map(& &1["symbol"])
 
     {:ok, ship_data} = API.get_ship(ship) |> dbg
 
@@ -43,20 +51,11 @@ defmodule Spacetraders.Bot.CheckMarkets do
 
     destination = ship_data["nav"]["route"]["destination"]
 
-    market_positions =
-      Enum.reduce(market_waypoints, %{}, fn wp, acc ->
-        Map.put(acc, wp["symbol"], {wp["x"], wp["y"]})
-      end)
-      |> Map.put(destination["symbol"], {destination["x"], destination["y"]})
-
-    markets = market_waypoints |> Enum.map(& &1["symbol"])
-
     server = self()
 
-    {:ok, ship_pid} = Task.start_link(fn -> probe_code(server, ship, destination["symbol"]) end)
+    {:ok, _} = Task.start_link(fn -> probe_code(server, ship, destination["symbol"]) end)
 
-    {:ok,
-     %__MODULE__{file: file, to_check: markets, ship_pid: ship_pid, positions: market_positions}}
+    {:ok, %__MODULE__{file: file, to_check: markets}}
   end
 
   defp get_market(server, curr) do
@@ -72,12 +71,12 @@ defmodule Spacetraders.Bot.CheckMarkets do
   end
 
   def handle_call({:get_market, curr}, _, state) when is_binary(curr) do
-    pos = market_xy(state, curr)
-
     closest_market =
       state.to_check
       |> Stream.filter(&(&1 != curr))
-      |> closest_market(state, pos)
+      |> closest_market(curr)
+
+    state = start_checking(state, closest_market)
 
     {:reply, closest_market, state}
   end
@@ -90,12 +89,12 @@ defmodule Spacetraders.Bot.CheckMarkets do
   end
 
   def handle_cast({:deliver_market_data, market, data}, state) do
-    state = %{state | to_check: state.to_check -- [market]}
+    state = %{state | checking: state.checking -- [market]}
     state = %{state | checked: [market | state.checked]}
 
     info = %{
       "waypoint" => market,
-      "data" => data,
+      "data" => data
     }
 
     :ok = IO.binwrite(state.file, [Jason.encode_to_iodata!(info), "\n"])
@@ -103,15 +102,17 @@ defmodule Spacetraders.Bot.CheckMarkets do
     {:noreply, state}
   end
 
-  defp market_xy(state, market) do
-    Map.fetch!(state.positions, market)
+  @spec start_checking(%__MODULE__{}, String.t()) :: %__MODULE__{}
+  defp start_checking(state, market) do
+    state = %{state | to_check: state.to_check -- [market]}
+    state = %{state | checking: [market | state.checking]}
+
+    state
   end
 
-  defp closest_market(markets, state, {x, y}) do
+  defp closest_market(markets, curr) do
     Enum.reduce(markets, {nil, :infinity}, fn new_market, {market, dist} ->
-      {n_x, n_y} = market_xy(state, new_market)
-
-      new_dist = :math.sqrt(Integer.pow(n_x - x, 2) + Integer.pow(n_y - y, 2))
+      new_dist = API.distance_between(curr, new_market)
 
       if market != nil do
         if new_dist < dist do
@@ -127,7 +128,7 @@ defmodule Spacetraders.Bot.CheckMarkets do
   end
 
   defp probe_code(server, ship, curr) do
-    next_market = get_market(server, curr) |> dbg
+    next_market = get_market(server, curr)
 
     if next_market != curr do
       {:ok, res} = API.navigate_ship(ship, next_market) |> dbg
