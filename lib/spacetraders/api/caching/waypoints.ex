@@ -1,14 +1,19 @@
 defmodule Spacetraders.API.Caching.Waypoints do
-  def init_table do
-    Task.start_link(fn ->
-      :dets.open_file(__MODULE__, file: ~c"waypoint_cache.dets", type: :set)
-      Process.sleep(:infinity)
-    end)
+  def child_spec(_opts) do
+    %{
+      id: __MODULE__,
+      start: {Task, :start_link, [&init_table/0]}
+    }
+  end
+
+  def init_table() do
+    :dets.open_file(__MODULE__, file: ~c"waypoint_cache.dets", type: :set)
+    Process.sleep(:infinity)
   end
 
   def get_waypoint(waypoint) do
     case :dets.lookup(__MODULE__, waypoint) do
-      [waypoint_info] -> {:some, waypoint_info}
+      [{_, waypoint_info}] -> {:some, waypoint_info}
       _ -> :none
     end
   end
