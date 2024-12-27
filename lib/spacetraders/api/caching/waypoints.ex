@@ -7,7 +7,7 @@ defmodule Spacetraders.API.Caching.Waypoints do
   end
 
   def init_table() do
-    :dets.open_file(__MODULE__, file: ~c"waypoint_cache.dets", type: :set)
+    :dets.open_file(__MODULE__, file: ~c"./caches/waypoint_cache.dets", type: :set)
     Process.sleep(:infinity)
   end
 

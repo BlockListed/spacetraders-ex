@@ -1,4 +1,6 @@
 defmodule Spacetraders.Market do
+  require Logger
+
   def child_spec(_opts) do
     %{
       id: __MODULE__,
@@ -7,29 +9,21 @@ defmodule Spacetraders.Market do
   end
 
   def init_table() do
-    :ets.new(__MODULE__, [:set, :public, :named_table])
+    :dets.open_file(__MODULE__, file: ~c"./caches/market_cache.dets", type: :set)
 
     Process.sleep(:infinity)
   end
 
   def enter_market_data(data) do
-    :ets.insert(__MODULE__, [{data["symbol"], data}])
+    if Map.has_key?(data, "tradeGoods") do
+      :dets.insert(__MODULE__, [{data["symbol"], data}])
+    else
+      Logger.warning("Invalid market data submitted, no ship at market! #{inspect(data)}")
+    end
   end
 
-  def get_all(acc \\ []) do
-    case acc do
-      [] ->
-        case :ets.first_lookup(__MODULE__) do
-          {_, [value]} -> get_all([value])
-          :"$end_of_table" -> []
-        end
-
-      [value | _] ->
-        case :ets.next_lookup(__MODULE__, elem(value, 0)) do
-          {_, [next]} -> get_all([next | acc])
-          :"$end_of_table" -> acc |> Enum.reverse()
-        end
-    end
+  def get_all() do
+    :dets.foldr(fn val, acc -> [val | acc] end, [], __MODULE__)
   end
 
   def get_all_to_file(path) do

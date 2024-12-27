@@ -34,6 +34,7 @@ defmodule Spacetraders.Bot.CheckMarket do
 end
 
 defmodule Spacetraders.Bot.CheckMarket.Manager do
+  require Logger
   alias Spacetraders.Bot.CheckMarket.RoutePlanner
   alias Spacetraders.API
   use GenServer
@@ -65,12 +66,12 @@ defmodule Spacetraders.Bot.CheckMarket.Manager do
         {:ok, ship_data} = API.get_ship(ship)
         ship_data["nav"]["route"]["destination"]["systemSymbol"] == system
       end)
-      # take at max len(markets) ships
-      |> Enum.take(Enum.count(markets))
 
     state = %{state | ships: state.ships -- avail_ships}
 
+    start = System.system_time(:millisecond)
     routes = RoutePlanner.plan_random(avail_ships, markets)
+    Logger.info("Took #{System.system_time(:millisecond)-start}ms to plan route!")
 
     {:ok, _} =
       DynamicSupervisor.start_child(
@@ -116,13 +117,25 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
   end
 
   def do_search(sup, routes) do
-    Task.Supervisor.async_stream(sup, routes, &check_route/1, concurrency: 1024, ordered: false, timeout: :infinity)
-    |> Enum.each(&Spacetraders.Bot.CheckMarket.add_check_ship/1)
+    Task.Supervisor.async_stream(sup, routes, &check_route/1,
+      concurrency: 1024,
+      ordered: false,
+      timeout: :infinity
+    )
+    |> Stream.map(fn {:ok, res} -> res end)
+    |> Enum.each(&CheckMarket.add_check_ship(&1.ship))
+
+    Logger.info("search complete")
   end
 
-  def check_route(%ShipRoute{}=route) do
+  @spec check_route(%ShipRoute{}) :: %ShipRoute{}
+  def check_route(%ShipRoute{} = route) do
+    Logger.info("Flying route #{inspect(route)}")
+
     {:ok, ship} = API.get_ship(route.ship)
-    Process.sleep(API.cooldown_ms(ship))
+    cd = API.cooldown_ms(ship)
+    Logger.info("Sleeping for #{cd}ms")
+    Process.sleep(cd)
 
     fly_route = fn waypoints ->
       Enum.each(waypoints, fn wp ->
@@ -135,11 +148,12 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
     end
 
     cond do
-      Enum.fetch(route.waypoints, 0) == route.origin ->
+      Enum.fetch!(route.waypoints, 0) == route.origin ->
         {:ok, market_data} = API.get_market(route.origin)
         Market.enter_market_data(market_data)
         [_ | waypoints] = route.waypoints
         fly_route.(waypoints)
+
       true ->
         fly_route.(route.waypoints)
     end

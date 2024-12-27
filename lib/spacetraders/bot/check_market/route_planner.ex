@@ -29,22 +29,73 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
     |> Enum.max()
   end
 
-  @spec plan_random([String.t()], [map()]) :: [ShipRoute.t()]
+  @spec plan_select([String.t()], [String.t()]) :: [ShipRoute.t()]
+  def plan_select(ships, waypoints) do
+    if Enum.count(ships) < Enum.count(waypoints) do
+      plan_random(ships, waypoints)
+    else
+      plan_complete(ships, waypoints)
+    end
+  end
+
+  @spec plan_random([String.t()], [String.t()]) :: [ShipRoute.t()]
   def plan_random(ships, waypoints) do
     ships = Enum.map(ships, &ShipRoute.from_ship/1)
 
     # yes, this is the best I could think of.
     # atleast it's multithreaded.
-    1..256
-    |> Task.async_stream(fn _ ->
-      waypoints = Enum.shuffle(waypoints)
+    1..128
+    |> Task.async_stream(
+      fn _ ->
+        waypoints = Enum.shuffle(waypoints)
 
-      routes = assign_naive(ships, waypoints)
-      {routes, route_cost(routes)}
-    end)
+        routes = assign_naive(ships, waypoints)
+        {routes, route_cost(routes)}
+      end,
+      timeout: 120_000,
+      ordered: false
+    )
     |> Stream.map(fn {:ok, res} -> res end)
     |> Enum.min_by(&elem(&1, 1))
     |> elem(0)
+  end
+
+  @doc """
+  Designed to assign one probe to each market.
+  If there's already a probe on a market, we chose
+  that one.
+  """
+  @spec plan_complete([String.t()], [String.t()]) :: [ShipRoute.t()]
+  def plan_complete(ships, waypoints) do
+    ships = Enum.map(ships, &ShipRoute.from_ship/1)
+
+    assign_complete(ships, waypoints)
+  end
+
+  @spec assign_complete([ShipRoute.t()], [String.t()]) :: [ShipRoute.t()]
+  defp assign_complete(ships, waypoints) do
+    true = Enum.count(ships) >= Enum.count(waypoints)
+
+    Enum.reduce(waypoints, ships, fn wp, ships ->
+      closest_ship =
+        Stream.filter(ships, &Enum.empty?(&1.waypoints))
+        |> Stream.map(&{&1, API.distance_between(&1.origin, wp)})
+        |> Enum.reduce(fn {a, a_dist}, {acc, acc_dist} ->
+          cond do
+            acc.origin == wp -> {acc, acc_dist}
+            a.origin == wp -> {a, a_dist}
+            a_dist < acc_dist -> {a, a_dist}
+            true -> {acc, acc_dist}
+          end
+        end)
+        |> elem(0)
+
+      closest_ship = %{closest_ship | waypoints: [wp]}
+
+      ships = Enum.reject(ships, &(&1.ship == closest_ship.ship))
+
+      [closest_ship | ships]
+    end)
   end
 
   @spec assign_naive([ShipRoute.t()], [String.t()]) :: [ShipRoute.t()]
