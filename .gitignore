@@ -26,3 +26,5 @@ spacetraders-*.tar
 
 waypoint_cache.dets
 markets.jsonl
+markets.json
+test_data.json
