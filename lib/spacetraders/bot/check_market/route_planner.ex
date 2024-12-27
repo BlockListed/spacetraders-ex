@@ -41,9 +41,12 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
     |> Enum.max()
   end
 
+  @spec plan_random([String.t()], [map()]) :: [ShipRoute.t()]
   def plan_random(ships, waypoints) do
     ships = Enum.map(ships, &ShipRoute.from_ship/1)
 
+    # yes, this is the best I could think of.
+    # atleast it's multithreaded.
     1..256
     |> Task.async_stream(fn _ ->
       waypoints = Enum.shuffle(waypoints)
@@ -54,13 +57,6 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
     |> Stream.map(fn {:ok, res} -> res end)
     |> Enum.min_by(&elem(&1, 1))
     |> elem(0)
-  end
-
-  @spec plan_route(ships :: [String.t()], waypoints :: [map()]) :: [ShipRoute.t()]
-  def plan_route(ships, waypoints) do
-    ships = Enum.map(ships, &ShipRoute.from_ship/1)
-
-    assign_naive(ships, waypoints)
   end
 
   @spec assign_naive([ShipRoute.t()], [String.t()]) :: [ShipRoute.t()]
@@ -77,46 +73,6 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
         assign_naive(ships_b |> Enum.reverse(), waypoints, [])
 
       {[], _, _} ->
-        Enum.reduce(ships_b, ships, fn ship, acc -> [ship | acc] end)
-    end
-  end
-
-  @spec plan_shortest([String.t()], [map()]) :: [ShipRoute.t()]
-  def plan_shortest(ships, waypoints) do
-    ships = Enum.map(ships, &ShipRoute.from_ship/1)
-
-    assign_shortest(ships, waypoints)
-  end
-
-  defp assign_shortest(ships, waypoints, ships_b \\ []) do
-    cond do
-      Enum.empty?(ships) && Enum.empty?(ships_b) ->
-        []
-
-      !Enum.empty?(waypoints) && !Enum.empty?(ships) ->
-        [ship | ships] = ships
-
-        curr_origin =
-          case ship.waypoints do
-            [wp | _] -> wp
-            _ -> ship.origin
-          end
-
-        next_wp =
-          Stream.map(waypoints, &{&1, API.distance_between(&1, curr_origin)})
-          |> Enum.min_by(&elem(&1, 1))
-          |> elem(0)
-
-        waypoints = Enum.reject(waypoints, &(&1 == next_wp))
-
-        ship = %{ship | waypoints: [next_wp | ship.waypoints]}
-
-        assign_shortest(ships, waypoints, [ship | ships_b])
-
-      Enum.empty?(ships) ->
-        assign_shortest(ships_b |> Enum.reverse(), waypoints, [])
-
-      Enum.empty?(waypoints) ->
         Enum.reduce(ships_b, ships, fn ship, acc -> [ship | acc] end)
     end
   end
