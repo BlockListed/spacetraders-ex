@@ -17,18 +17,6 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
     end
   end
 
-  def testing(func) do
-    data = File.read!("test_data.json") |> Jason.decode!()
-
-    ships = data["ships"]
-    markets = data["markets"]
-
-    routes = apply(Spacetraders.Bot.CheckMarket.RoutePlanner, func, [ships, markets])
-    cost = route_cost(routes)
-
-    {routes, cost}
-  end
-
   @spec route_cost([ShipRoute.t()]) :: number()
   def route_cost(routes) do
     routes
