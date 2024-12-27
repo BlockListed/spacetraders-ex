@@ -140,10 +140,11 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
     fly_route = fn waypoints ->
       Enum.each(waypoints, fn wp ->
         {:ok, nav} = API.navigate_ship(route.ship, wp)
-        {:ok, market_data} = API.get_market(wp)
-        Market.enter_market_data(market_data)
 
         Process.sleep(API.cooldown_ms(nav))
+
+        {:ok, market_data} = API.get_market(wp)
+        Market.enter_market_data(market_data)
       end)
     end
 
