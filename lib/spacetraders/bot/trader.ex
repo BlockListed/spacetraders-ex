@@ -23,7 +23,12 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   def terminate(reason, currentState, data) do
-    Logger.error(msg: "Terminating state machine", reason: reason, state: currentState, data: data) 
+    Logger.error(
+      msg: "Terminating state machine",
+      reason: reason,
+      state: currentState,
+      data: data
+    )
   end
 
   def child_spec(opts) do
@@ -49,6 +54,7 @@ defmodule Spacetraders.Bot.Trader do
     trade_item = elem(trade_route, 0).trade["symbol"]
 
     Logger.info("Starting trading bot!")
+
     :gen_statem.start_link(
       __MODULE__,
       {trade_route, ship, cargo, ship_location, trade_item, funds, ship_nav},
@@ -72,8 +78,8 @@ defmodule Spacetraders.Bot.Trader do
 
     if ship_nav["status"] == "IN_TRANSIT" do
       # TODO: make this api not stupid
-      cd = API.cooldown_ms(%{"nav" => ship_nav}) 
-      {:ok, :waiting, data, {:state_timeout, cd, :arrived}} 
+      cd = API.cooldown_ms(%{"nav" => ship_nav})
+      {:ok, :waiting, data, {:state_timeout, cd, :arrived}}
     else
       {:ok, :initial, data, {:next_event, :internal, :init}}
     end
@@ -170,7 +176,6 @@ defmodule Spacetraders.Bot.Trader do
     actual_sell = min(volume, to_sell)
 
     if actual_sell > 0 do
-      
       {:ok, sale} = API.sell_cargo(data.ship, data.trade_item, min(volume, to_sell))
 
       income = sale["transaction"]["totalPrice"]
@@ -183,7 +188,7 @@ defmodule Spacetraders.Bot.Trader do
           avail_funds: data.avail_funds + income
         )
 
-        do_sale(data)
+      do_sale(data)
     else
       data
     end
@@ -231,15 +236,16 @@ defmodule Spacetraders.Bot.Trader do
     capacity = data.cargo["capacity"] - data.cargo["units"]
 
     actual_buy = min(min(max_buy_funds, capacity), trade_volume)
-    
-    data.trade_route |> dbg
 
     updated_trade_route =
-      Spacetraders.Bot.Trader.Planner.Market.update_trade_route(data.trade_route) |> dbg
+      Spacetraders.Bot.Trader.Planner.Market.update_trade_route(data.trade_route)
 
     data = struct!(data, trade_route: updated_trade_route)
 
-    profit_per_unit = Spacetraders.Bot.Trader.Planner.get_profit_per_unit(updated_trade_route) |> dbg
+    profit_per_unit =
+      Spacetraders.Bot.Trader.Planner.get_profit_per_unit(updated_trade_route)
+
+    Logger.info("Trading with an expected profit of #{profit_per_unit}!")
 
     if profit_per_unit < 500 do
       raise "Route no longer profitable"
