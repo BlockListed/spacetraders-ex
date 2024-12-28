@@ -90,6 +90,24 @@ defmodule Spacetraders.API.Client do
     })
   end
 
+  def purchase_cargo(ship, symbol, units) do
+    post("/my/ships/#{ship}/purchase", %{
+      symbol: symbol,
+      units: units
+    })
+  end
+
+  def sell_cargo(ship, symbol, units) do
+    post("/my/ships/#{ship}/sell", %{
+      symbol: symbol,
+      units: units
+    })
+  end
+
+  def refuel_ship(ship) do
+    post("/my/ships/#{ship}/refuel", %{})
+  end
+
   defp waypoint_url(waypoint) do
     system = Spacetraders.API.extract_system(waypoint)
 

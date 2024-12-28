@@ -15,7 +15,17 @@ defmodule Spacetraders.API do
 
   @spec get_ship(String.t()) :: {:ok, map()} | {:error, String.t()}
   def get_ship(ship) do
-    cvt(Client.get_ship(ship))
+    res = cvt(Client.get_ship(ship))
+
+    case res do
+      {:ok, data} ->
+        # sanity check
+        true = data["nav"]["waypointSymbol"] == data["nav"]["route"]["destination"]["symbol"]
+        {:ok, data}
+
+      _ ->
+        res
+    end
   end
 
   def list_systems() do
@@ -86,6 +96,18 @@ defmodule Spacetraders.API do
 
   def purchase_ship(shipyard, ship_type) do
     cvt(Client.purchase_ship(shipyard, ship_type))
+  end
+
+  def purchase_cargo(ship, symbol, units) do
+    cvt(Client.purchase_cargo(ship, symbol, units))
+  end
+
+  def sell_cargo(ship, symbol, units) do
+    cvt(Client.sell_cargo(ship, symbol, units))
+  end
+
+  def refuel_ship(ship) do
+    cvt(Client.refuel_ship(ship))
   end
 
   defp cvt({_, %Tesla.Env{}} = resp) do
