@@ -1,4 +1,5 @@
 defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
+  require Logger
   alias Spacetraders.API
 
   defmodule ShipRoute do
@@ -44,7 +45,7 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
 
     # yes, this is the best I could think of.
     # atleast it's multithreaded.
-    1..128
+    {routes, dist} = 1..128
     |> Task.async_stream(
       fn _ ->
         waypoints = Enum.shuffle(waypoints)
@@ -57,7 +58,10 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
     )
     |> Stream.map(fn {:ok, res} -> res end)
     |> Enum.min_by(&elem(&1, 1))
-    |> elem(0)
+
+    Logger.info("Choosing route with max dist #{dist}!")
+
+    routes
   end
 
   @doc """
