@@ -71,7 +71,7 @@ defmodule Spacetraders.Bot.CheckMarket.Manager do
 
     start = System.system_time(:millisecond)
     routes = RoutePlanner.plan_random(avail_ships, markets)
-    Logger.info("Took #{System.system_time(:millisecond)-start}ms to plan route!")
+    Logger.info("Took #{System.system_time(:millisecond) - start}ms to plan route!")
 
     {:ok, _} =
       DynamicSupervisor.start_child(

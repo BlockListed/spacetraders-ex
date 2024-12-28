@@ -23,6 +23,13 @@ defmodule Spacetraders.Market do
     end
   end
 
+  def get(symbol) do
+    case :dets.lookup(__MODULE__, symbol) do
+      [{_, market}] -> {:some, market}
+      [] -> :none
+    end
+  end
+
   def get_all() do
     :dets.foldr(fn val, acc -> [val | acc] end, [], __MODULE__)
   end
@@ -35,8 +42,8 @@ defmodule Spacetraders.Market do
 
   def get_all_in_system(system) do
     get_all()
-      |> Stream.map(&elem(&1, 1))
-      |> Stream.filter(&(API.extract_system(&1["symbol"]) == system))
-      |> Enum.to_list()
+    |> Stream.map(&elem(&1, 1))
+    |> Stream.filter(&(API.extract_system(&1["symbol"]) == system))
+    |> Enum.to_list()
   end
 end
