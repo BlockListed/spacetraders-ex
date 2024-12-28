@@ -16,10 +16,10 @@ defmodule Spacetraders.Bot.Trader.Planner do
       {:some, buy_market} = Spacetraders.Market.get(from.symbol)
       {:some, sell_market} = Spacetraders.Market.get(to.symbol)
 
-      buy_trade = Enum.find(buy_market["tradeGoods"], &(&1["symbol"] == trade_good))
-      sell_trade = Enum.find(sell_market["tradeGoods"], &(&1["symbol"] == trade_good))
+      buy_trade = Enum.find(buy_market["tradeGoods"], &(&1["symbol"] == trade_good)) |> dbg
+      sell_trade = Enum.find(sell_market["tradeGoods"], &(&1["symbol"] == trade_good)) |> dbg
 
-      {%Market{from | trade: buy_trade}, %Market{from | trade: sell_trade}}
+      {%Market{from | trade: buy_trade}, %Market{to | trade: sell_trade}} |> dbg
     end
   end
 
