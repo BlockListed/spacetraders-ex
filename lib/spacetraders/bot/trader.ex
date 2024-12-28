@@ -220,9 +220,11 @@ defmodule Spacetraders.Bot.Trader do
     capacity = data.cargo["capacity"] - data.cargo["units"]
 
     actual_buy = min(min(max_buy_funds, capacity), trade_volume)
+    
+    data.trade_route |> dbg
 
     updated_trade_route =
-      Spacetraders.Bot.Trader.Planner.Market.update_trade_route(data.trade_route)
+      Spacetraders.Bot.Trader.Planner.Market.update_trade_route(data.trade_route) |> dbg
 
     data = struct!(data, trade_route: updated_trade_route)
 
