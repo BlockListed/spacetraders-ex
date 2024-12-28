@@ -123,7 +123,7 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
       timeout: :infinity
     )
     |> Stream.map(fn {:ok, res} -> res end)
-    |> Enum.each(&CheckMarket.add_check_ship(&1.ship))
+    |> Enum.each(&CheckMarket.add_check_ship(&1))
 
     Logger.info("search complete")
   end
