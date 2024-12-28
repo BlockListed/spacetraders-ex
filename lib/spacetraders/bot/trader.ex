@@ -169,22 +169,23 @@ defmodule Spacetraders.Bot.Trader do
 
     actual_sell = min(volume, to_sell)
 
-    {:ok, sale} = API.sell_cargo(data.ship, data.trade_item, min(volume, to_sell))
+    if actual_sell > 0 do
+      
+      {:ok, sale} = API.sell_cargo(data.ship, data.trade_item, min(volume, to_sell))
 
-    income = sale["transaction"]["totalPrice"]
+      income = sale["transaction"]["totalPrice"]
 
-    Logger.info("Sold #{actual_sell} units for #{income}.")
+      Logger.info("Sold #{actual_sell} units for #{income}.")
 
-    data =
-      struct!(data,
-        cargo: sale["cargo"],
-        avail_funds: data.avail_funds + income
-      )
+      data =
+        struct!(data,
+          cargo: sale["cargo"],
+          avail_funds: data.avail_funds + income
+        )
 
-    if trade_item_amount(data) > 0 do
-      data
+        do_sale(data)
     else
-      do_sale(data)
+      data
     end
   end
 
