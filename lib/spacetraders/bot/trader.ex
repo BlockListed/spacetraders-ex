@@ -226,7 +226,7 @@ defmodule Spacetraders.Bot.Trader do
 
     data = struct!(data, trade_route: updated_trade_route)
 
-    profit_per_unit = Spacetraders.Bot.Trader.Planner.get_profit_per_unit(updated_trade_route)
+    profit_per_unit = Spacetraders.Bot.Trader.Planner.get_profit_per_unit(updated_trade_route) |> dbg
 
     if profit_per_unit < 500 do
       raise "Route no longer profitable"
