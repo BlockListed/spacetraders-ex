@@ -22,6 +22,10 @@ defmodule Spacetraders.Bot.Trader do
     :state_functions
   end
 
+  def terminate(reason, currentState, data) do
+    Logger.error(msg: "Terminating state machine", reason: reason, state: currentState, data: data) 
+  end
+
   def child_spec(opts) do
     %{
       id: __MODULE__,
