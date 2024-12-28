@@ -33,7 +33,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
           Map.get(import_map, trade.trade["symbol"], [])
           |> Stream.map(&{trade, &1})
         end)
-      end) |> Enum.to_list()
+      end) |> Stream.concat() |> Stream.concat() |> Enum.to_list()
 
     trade_routes |> dbg
   end
