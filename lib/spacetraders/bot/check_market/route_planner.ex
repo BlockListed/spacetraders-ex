@@ -32,9 +32,11 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
 
   @spec plan_select([String.t()], [String.t()]) :: [ShipRoute.t()]
   def plan_select(ships, waypoints) do
-    if Enum.count(ships) <= Enum.count(waypoints) do
+    if Enum.count(ships) < Enum.count(waypoints) do
+      Logger.info("Using random route planner")
       plan_random(ships, waypoints)
     else
+      Logger.info("Using complete route planner")
       plan_complete(ships, waypoints)
     end
   end
