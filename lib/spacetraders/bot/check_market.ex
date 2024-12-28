@@ -70,7 +70,7 @@ defmodule Spacetraders.Bot.CheckMarket.Manager do
     state = %{state | ships: state.ships -- avail_ships}
 
     start = System.system_time(:millisecond)
-    routes = RoutePlanner.plan_random(avail_ships, markets)
+    routes = RoutePlanner.plan_select(avail_ships, markets)
     Logger.info("Took #{System.system_time(:millisecond) - start}ms to plan route!")
 
     {:ok, _} =
