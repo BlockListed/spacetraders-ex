@@ -70,7 +70,13 @@ defmodule Spacetraders.Bot.Trader do
       avail_funds: funds
     }
 
-    {:ok, :initial, data, {:next_event, :internal, :init}}
+    if ship_nav["status"] == "IN_TRANSIT" do
+      # TODO: make this api not stupid
+      cd = API.cooldown_ms(%{"nav" => ship_nav}) 
+      {:ok, :waiting, data, {:state_timeout, cd, :arrived}} 
+    else
+      {:ok, :initial, data, {:next_event, :internal, :init}}
+    end
   end
 
   defp trade_item_amount(%State{} = data) do
@@ -83,6 +89,10 @@ defmodule Spacetraders.Bot.Trader do
     else
       0
     end
+  end
+
+  def waiting(:state_timeout, :arrived, %State{} = data) do
+    {:next_state, :initial, data, [{:next_event, :internal, :init}]}
   end
 
   def initial(:internal, :init, %State{} = data) do
