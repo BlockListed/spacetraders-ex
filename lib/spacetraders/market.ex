@@ -1,4 +1,5 @@
 defmodule Spacetraders.Market do
+  alias Spacetraders.API
   require Logger
 
   def child_spec(_opts) do
@@ -30,5 +31,12 @@ defmodule Spacetraders.Market do
     all = get_all() |> Enum.map(&elem(&1, 1))
 
     File.write!(path, Jason.encode_to_iodata!(all))
+  end
+
+  def get_all_in_system(system) do
+    get_all()
+      |> Stream.map(&elem(&1, 1))
+      |> Stream.filter(&(API.extract_system(&1["symbol"]) == system))
+      |> Enum.to_list()
   end
 end
