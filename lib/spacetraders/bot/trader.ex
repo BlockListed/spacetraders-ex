@@ -108,7 +108,7 @@ defmodule Spacetraders.Bot.Trader do
 
   def sell(:internal, :start, %State{} = data) do
     Logger.info("sell start")
-    sell_location = elem(data.trade_route, 1).symbol
+    sell_location = data.trade_route.to
 
     if data.ship_location != sell_location do
       {:ok, nav} = API.navigate_ship(data.ship, sell_location)
