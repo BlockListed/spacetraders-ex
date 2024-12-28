@@ -1,4 +1,5 @@
 defmodule Spacetraders.Bot.Trader.Manager do
+  require Logger
   alias Spacetraders.API
   use Supervisor
 
@@ -21,7 +22,9 @@ defmodule Spacetraders.Bot.Trader.Manager do
 
     true = ship_data["nav"]["systemSymbol"] == system
 
+    start = System.system_time(:millisecond)
     route = Spacetraders.Bot.Trader.Planner.plan(system)
+    Logger.info("Planned trading route in #{System.system_time(:millisecond)-start}ms!")
 
     DynamicSupervisor.start_child(@tradesupervisor, {
       Spacetraders.Bot.Trader,

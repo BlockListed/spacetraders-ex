@@ -40,16 +40,23 @@ defmodule Spacetraders.Bot.Trader do
 
     ship_location = ship_data["nav"]["waypointSymbol"]
 
+    ship_nav = ship_data["nav"]
+
     trade_item = elem(trade_route, 0).trade["symbol"]
 
-    :gen_statem.start(
+    Logger.info("Starting trading bot!")
+    :gen_statem.start_link(
       __MODULE__,
-      {trade_route, ship, cargo, ship_location, trade_item, funds},
+      {trade_route, ship, cargo, ship_location, trade_item, funds, ship_nav},
       opts
     )
   end
 
-  def init({trade_route, ship, cargo, ship_location, trade_item, funds}) do
+  def init({trade_route, ship, cargo, ship_location, trade_item, funds, ship_nav}) do
+    if ship_nav["status"] == "DOCKED" do
+      {:ok, _} = API.orbit_ship(ship)
+    end
+
     data = %State{
       trade_route: trade_route,
       ship: ship,
@@ -83,6 +90,7 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   def sell(:internal, :start, %State{} = data) do
+    Logger.info("sell start")
     sell_location = elem(data.trade_route, 1).symbol
 
     if data.ship_location != sell_location do
@@ -97,6 +105,7 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   def sell(a, :arrived, %State{} = data) when a in [:internal, :state_timeout] do
+    Logger.info("sell arrived")
     sell_location = elem(data.trade_route, 1).symbol
     true = sell_location == data.ship_location
 
@@ -166,6 +175,7 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   def buy(:internal, :start, %State{} = data) do
+    Logger.info("buy start")
     buy_location = elem(data.trade_route, 0).symbol
 
     if data.ship_location != buy_location do
@@ -180,6 +190,7 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   def buy(a, :arrived, %State{} = data) when a in [:internal, :state_timeout] do
+    Logger.info("buy arrived")
     buy_location = elem(data.trade_route, 0).symbol
     true = data.ship_location == buy_location
 
