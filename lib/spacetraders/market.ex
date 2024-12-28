@@ -23,6 +23,16 @@ defmodule Spacetraders.Market do
     end
   end
 
+  @spec update_market_data(String.t()) :: :ok | {:error, String.t()}
+  def update_market_data(symbol) do
+    case API.get_market(symbol) do
+      {:ok, market} ->
+        enter_market_data(market)
+        :ok
+      res -> res
+    end
+  end
+
   def get(symbol) do
     case :dets.lookup(__MODULE__, symbol) do
       [{_, market}] -> {:some, market}

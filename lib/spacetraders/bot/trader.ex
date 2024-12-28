@@ -1,19 +1,19 @@
 defmodule Spacetraders.Bot.Trader do
   require Logger
+  alias Spacetraders.Bot.Trader.Planner.Market.TradeRoute
   alias Spacetraders.API
   @behaviour :gen_statem
 
   defmodule State do
-    alias Spacetraders.Bot.Trader.Planner.Market
-    @enforce_keys [:trade_route, :ship, :cargo, :ship_location, :trade_item, :avail_funds]
-    defstruct [:trade_route, :ship, :cargo, :ship_location, :trade_item, :avail_funds]
+    alias Spacetraders.Bot.Trader.Planner.Market.TradeRoute
+    @enforce_keys [:trade_route, :ship, :cargo, :ship_location, :avail_funds]
+    defstruct [:trade_route, :ship, :cargo, :ship_location, :avail_funds]
 
     @type t :: %State{
-            trade_route: Market.trade_route(),
+            trade_route: TradeRoute.t(),
             ship: String.t(),
             cargo: list(any()),
             ship_location: String.t(),
-            trade_item: String.t(),
             avail_funds: number()
           }
   end
@@ -51,18 +51,16 @@ defmodule Spacetraders.Bot.Trader do
 
     ship_nav = ship_data["nav"]
 
-    trade_item = elem(trade_route, 0).trade["symbol"]
-
     Logger.info("Starting trading bot!")
 
     :gen_statem.start_link(
       __MODULE__,
-      {trade_route, ship, cargo, ship_location, trade_item, funds, ship_nav},
+      {trade_route, ship, cargo, ship_location, funds, ship_nav},
       opts
     )
   end
 
-  def init({trade_route, ship, cargo, ship_location, trade_item, funds, ship_nav}) do
+  def init({trade_route, ship, cargo, ship_location, funds, ship_nav}) do
     if ship_nav["status"] == "DOCKED" do
       {:ok, _} = API.orbit_ship(ship)
     end
@@ -72,7 +70,6 @@ defmodule Spacetraders.Bot.Trader do
       ship: ship,
       cargo: cargo,
       ship_location: ship_location,
-      trade_item: trade_item,
       avail_funds: funds
     }
 
@@ -88,7 +85,7 @@ defmodule Spacetraders.Bot.Trader do
   defp trade_item_amount(%State{} = data) do
     tmp =
       data.cargo["inventory"]
-      |> Enum.find(&(&1["symbol"] == data.trade_item))
+      |> Enum.find(&(&1["symbol"] == data.trade_route.symbol))
 
     if tmp != nil do
       tmp["units"]
@@ -126,57 +123,33 @@ defmodule Spacetraders.Bot.Trader do
 
   def sell(a, :arrived, %State{} = data) when a in [:internal, :state_timeout] do
     Logger.info("sell arrived")
-    sell_location = elem(data.trade_route, 1).symbol
+    sell_location = data.trade_route.to
     true = sell_location == data.ship_location
 
     {:ok, _} = API.dock_ship(data.ship)
     {:ok, _} = API.refuel_ship(data.ship)
+    :ok = Spacetraders.Market.update_market_data(data.trade_route.to)
 
     data = do_sale(data)
 
     {:ok, _} = API.orbit_ship(data.ship)
 
-    {:next_state, :buy, data, [{:next_event, :internal, :start}]}
-  end
-
-  defp get_market(%State{} = data, at) do
-    symbol =
-      case at do
-        :buy -> elem(data.trade_route, 0).symbol
-        :sell -> elem(data.trade_route, 1).symbol
-      end
-
-    {:ok, market_data} = API.get_market(symbol)
-
-    Spacetraders.Market.enter_market_data(market_data)
-
-    market_data
-  end
-
-  @spec trade_volume(map(), String.t()) :: number()
-  defp trade_volume(market_data, symbol) do
-    trade_good = market_data["tradeGoods"] |> Enum.find(&(&1["symbol"] == symbol))
-
-    trade_good["tradeVolume"]
-  end
-
-  @spec buy_price(map(), String.t()) :: number()
-  defp buy_price(market_data, symbol) do
-    trade_good = market_data["tradeGoods"] |> Enum.find(&(&1["symbol"] == symbol))
-
-    trade_good["purchasePrice"]
+    if TradeRoute.profit(data.trade_route) >= 500 do
+      {:next_state, :buy, data, [{:next_event, :internal, :start}]}
+    else
+      Logger.info("Stopping trade route, since it's no longer profitable!")
+      :stop
+    end
   end
 
   defp do_sale(%State{} = data) do
-    market = get_market(data, :sell)
-
-    volume = trade_volume(market, data.trade_item)
+    volume = TradeRoute.sell_volume(data.trade_route)
     to_sell = trade_item_amount(data)
 
     actual_sell = min(volume, to_sell)
 
     if actual_sell > 0 do
-      {:ok, sale} = API.sell_cargo(data.ship, data.trade_item, min(volume, to_sell))
+      {:ok, sale} = API.sell_cargo(data.ship, data.trade_route.symbol, min(volume, to_sell))
 
       income = sale["transaction"]["totalPrice"]
 
@@ -211,11 +184,12 @@ defmodule Spacetraders.Bot.Trader do
 
   def buy(a, :arrived, %State{} = data) when a in [:internal, :state_timeout] do
     Logger.info("buy arrived")
-    buy_location = elem(data.trade_route, 0).symbol
+    buy_location = data.trade_route.from
     true = data.ship_location == buy_location
 
     {:ok, _} = API.dock_ship(data.ship)
     {:ok, _} = API.refuel_ship(data.ship)
+    :ok = Spacetraders.Market.update_market_data(data.trade_route.from)
 
     data = do_buy(data)
 
@@ -224,12 +198,10 @@ defmodule Spacetraders.Bot.Trader do
     {:next_state, :sell, data, [{:next_event, :internal, :start}]}
   end
 
-  @spec do_buy(%State{}) :: %State{}
-  defp do_buy(%State{} = data) do
-    market = get_market(data, :buy)
-
-    trade_volume = trade_volume(market, data.trade_item)
-    price = buy_price(market, data.trade_item)
+  @spec do_buy(State.t()) :: State.t()
+  defp do_buy(%State{}=data) do
+    trade_volume = TradeRoute.buy_volume(data.trade_route)
+    price = TradeRoute.buy_price(data.trade_route)
 
     funds = data.avail_funds
     max_buy_funds = Integer.floor_div(funds, price)
@@ -237,22 +209,13 @@ defmodule Spacetraders.Bot.Trader do
 
     actual_buy = min(min(max_buy_funds, capacity), trade_volume)
 
-    updated_trade_route =
-      Spacetraders.Bot.Trader.Planner.Market.update_trade_route(data.trade_route)
-
-    data = struct!(data, trade_route: updated_trade_route)
-
-    profit_per_unit =
-      Spacetraders.Bot.Trader.Planner.get_profit_per_unit(updated_trade_route)
+    profit_per_unit = TradeRoute.profit(data.trade_route)
 
     Logger.info("Trading with an expected profit of #{profit_per_unit}!")
 
-    if profit_per_unit < 500 do
-      raise "Route no longer profitable"
-    end
-
-    if actual_buy > 0 do
-      {:ok, purchase} = API.purchase_cargo(data.ship, data.trade_item, actual_buy)
+    if actual_buy > 0 && profit_per_unit >= 500 do
+      {:ok, purchase} = API.purchase_cargo(data.ship, data.trade_route.symbol, actual_buy)
+      :ok = Spacetraders.Market.update_market_data(data.trade_route.from)
 
       expense = purchase["transaction"]["totalPrice"]
 
