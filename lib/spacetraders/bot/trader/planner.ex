@@ -8,8 +8,22 @@ defmodule Spacetraders.Bot.Trader.Planner do
     @type t :: %Market{symbol: String.t(), trade: map()}
 
     @type trade_route :: {t(), t()}
+
+    @spec update_trade_route(trade_route()) :: trade_route()
+    def update_trade_route({from, to}) do
+      trade_good = from.trade["symbol"]
+
+      {:some, buy_market} = Spacetraders.Market.get(from.symbol)
+      {:some, sell_market} = Spacetraders.Market.get(to.symbol)
+
+      buy_trade = Enum.find(buy_market["tradeGoods"], &(&1["symbol"] == trade_good))
+      sell_trade = Enum.find(sell_market["tradeGoods"], &(&1["symbol"] == trade_good))
+
+      {%Market{from | trade: buy_trade}, %Market{from | trade: sell_trade}}
+    end
   end
 
+  @spec plan(String.t()) :: Market.trade_route()
   def plan(system) do
     markets = Spacetraders.Market.get_all_in_system(system)
 
@@ -42,32 +56,21 @@ defmodule Spacetraders.Bot.Trader.Planner do
       |> Stream.concat()
       |> Enum.to_list()
 
-    highest_profit = get_best_trade_route_by(trade_routes, &get_profit_per_unit/1)
-    best_margin = get_best_trade_route_by(trade_routes, &get_margin/1)
-    highest_profit_per_dist = get_best_trade_route_by(trade_routes, &(get_profit_per_unit(&1)/get_distance(&1)))
+    highest_profit_per_dist =
+      get_best_trade_route_by(trade_routes, &(get_profit_per_unit(&1) / get_distance(&1)))
 
-    highest_profit |> dbg
-    best_margin |> dbg
-    highest_profit_per_dist |> dbg
+    highest_profit_per_dist
   end
 
   @spec get_best_trade_route_by([Market.trade_route()], (Market.trade_route() -> number())) ::
           Market.trade_route()
-  def get_best_trade_route_by(trade_routes, fun) do
+  defp get_best_trade_route_by(trade_routes, fun) do
     Enum.max_by(trade_routes, fun)
   end
 
   @spec get_profit_per_unit(Market.trade_route()) :: number()
   def get_profit_per_unit({from, to}) do
     to.trade["sellPrice"] - from.trade["purchasePrice"]
-  end
-
-  @spec get_margin(Market.trade_route()) :: number()
-  def get_margin({from, to}) do
-    cogs = from.trade["purchasePrice"]
-    sale_price = to.trade["sellPrice"]
-
-    (sale_price - cogs) / sale_price * 100
   end
 
   @spec get_distance(Market.trade_route()) :: number()
