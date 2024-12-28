@@ -133,6 +133,11 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
     Logger.info("Flying route #{inspect(route)}")
 
     {:ok, ship} = API.get_ship(route.ship)
+
+    if ship["nav"]["status"] == "DOCKED" do
+      API.orbit_ship(route.ship)
+    end
+
     cd = API.cooldown_ms(ship)
     Logger.info("Sleeping for #{cd}ms")
     Process.sleep(cd)
