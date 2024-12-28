@@ -129,10 +129,10 @@ defmodule Spacetraders.Bot.Trader do
 
     {:ok, _} = API.dock_ship(data.ship)
     {:ok, _} = API.refuel_ship(data.ship)
-    :ok = Spacetraders.Market.update_market_data(data.trade_route.to)
 
     data = do_sale(data)
 
+    :ok = Spacetraders.Market.update_market_data(data.trade_route.to)
     {:ok, _} = API.orbit_ship(data.ship)
 
     if TradeRoute.profit(data.trade_route) >= 500 do
