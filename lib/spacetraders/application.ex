@@ -10,7 +10,8 @@ defmodule Spacetraders.Application do
        ]},
       Spacetraders.Market,
       Spacetraders.API.Caching.Waypoints,
-      {Spacetraders.Bot.CheckMarket, name: Spacetraders.Bot.CheckMarket}
+      {Spacetraders.Bot.CheckMarket, name: Spacetraders.Bot.CheckMarket},
+      Spacetraders.Bot.Trader.Manager
     ]
 
     IO.puts("Starting Spacetraders")
