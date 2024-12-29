@@ -38,34 +38,36 @@ defmodule Spacetraders.Bot.MarketChecker do
           {{String.t(), GenServer.from()}, String.t()}
         ]) :: [{{String.t(), GenServer.from()}, String.t()}]
   def assign_no_moving(ships, markets, acc \\ []) do
-    cond do
-      Enum.empty?(ships) || Enum.empty?(markets) ->
-        acc
+    if Enum.empty?(ships) || Enum.empty?(markets) do
+      acc
+    else
+      [try_assign | rest] = markets
 
-      true ->
-        [try_assign | rest] = markets
-
-        maybe_assigned =
-          Enum.reduce(ships, nil, fn ship, acc ->
-            if acc != nil do
-              acc
+      maybe_assigned =
+        Enum.reduce(ships, nil, fn ship, acc ->
+          if acc != nil do
+            acc
+          else
+            if elem(ship, 0) == try_assign do
+              ship
             else
-              if elem(ship, 0) == try_assign do
-                ship
-              else
-                acc
-              end
+              acc
             end
-          end)
+          end
+        end)
 
-        if maybe_assigned != nil do
-          assign_no_moving(ships -- [maybe_assigned], rest, [{maybe_assigned, try_assign} | acc])
-        else
-          assign_no_moving(ships, rest, acc)
-        end
+      if maybe_assigned != nil do
+        assign_no_moving(ships -- [maybe_assigned], rest, [{maybe_assigned, try_assign} | acc])
+      else
+        assign_no_moving(ships, rest, acc)
+      end
     end
   end
 
+  @doc """
+  This will try to assign as many ships which don't need to
+  move as possible.
+  """
   def handle_cast({:check_multiple, markets}, state) do
     if !Enum.empty?(state.waiting) do
       Logger.info(len: state.waiting |> Enum.count())
