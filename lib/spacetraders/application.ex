@@ -12,7 +12,7 @@ defmodule Spacetraders.Application do
       Spacetraders.API.Caching.Waypoints,
       Spacetraders.Bot.MarketChecker.Manager,
       Spacetraders.Bot.Trader.Manager,
-      {Spacetraders.Accounting, name: Spacetraders.Accounting}
+      Spacetraders.Accounting
     ]
 
     IO.puts("Starting Spacetraders")

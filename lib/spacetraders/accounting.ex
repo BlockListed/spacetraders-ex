@@ -20,7 +20,7 @@ defmodule Spacetraders.Accounting do
   end
 
   def start_link(opts) do
-    Agent.start_link(__MODULE__, :initial_state, [], opts)
+    Agent.start_link(__MODULE__, :initial_state, [], Keyword.put_new(opts, :name, __MODULE__))
   end
 
   defmodule Account do
@@ -106,11 +106,11 @@ defmodule Spacetraders.Accounting do
 
   @type state :: {map(), [Transaction.t()]}
 
-  @spec create_account(Agent.agent(), [Account.option()], nil | atom()) :: Account.t()
-  def create_account(server, id \\ nil, flags \\ []) do
+  @spec create_account(nil | atom(), [Account.option()]) :: Account.t()
+  def create_account(id \\ nil, flags \\ []) do
     id = if(id == nil, do: make_ref(), else: id)
 
-    Agent.get_and_update(server, __MODULE__, :upd_create_account, [id, flags])
+    Agent.get_and_update(__MODULE__, __MODULE__, :upd_create_account, [id, flags])
   end
 
   @doc false
@@ -126,10 +126,10 @@ defmodule Spacetraders.Accounting do
     {account, {accounts, transactions}}
   end
 
-  @spec transact(Agent.agent(), Account.id(), Account.id(), non_neg_integer()) ::
+  @spec transact(Account.id(), Account.id(), non_neg_integer()) ::
           {:ok, Transaction.t()} | {:error, String.t()}
-  def transact(server, debit_account, credit_account, amount) do
-    Agent.get_and_update(server, __MODULE__, :upd_transact, [
+  def transact(debit_account, credit_account, amount) do
+    Agent.get_and_update(__MODULE__, __MODULE__, :upd_transact, [
       debit_account,
       credit_account,
       amount
@@ -165,9 +165,9 @@ defmodule Spacetraders.Accounting do
     end
   end
 
-  @spec get_account(Agent.agent(), Account.id()) :: {:some, Account.t()} | :none
-  def get_account(server, account) do
-    Agent.get(server, __MODULE__, :get_get_account, [account])
+  @spec get_account(Account.id()) :: {:some, Account.t()} | :none
+  def get_account(account) do
+    Agent.get(__MODULE__, __MODULE__, :get_get_account, [account])
   end
 
   @doc false
@@ -179,10 +179,10 @@ defmodule Spacetraders.Accounting do
   end
 
   # TODO
-  @spec close_account(Agent.agent(), Account.id(), Account.id()) ::
+  @spec close_account(Account.id(), Account.id()) ::
           {:ok, Transaction.t()} | {:error, String.t()}
-  def close_account(server, account, against) do
-    Agent.get_and_update(server, __MODULE__, :upd_close_account, [account, against])
+  def close_account(account, against) do
+    Agent.get_and_update(__MODULE__, __MODULE__, :upd_close_account, [account, against])
   end
 
   @doc false
