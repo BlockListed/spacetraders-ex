@@ -81,11 +81,11 @@ defmodule Spacetraders.Bot.MarketChecker do
 
       state = struct!(state, waiting: waiting)
 
-      Enum.each(markets, &check_market(self(), &1))
+      Enum.each(markets, &check_market(&1))
 
       {:noreply, state}
     else
-      Enum.each(markets, &check_market(self(), &1))
+      Enum.each(markets, &check_market(&1))
 
       {:noreply, state}
     end
