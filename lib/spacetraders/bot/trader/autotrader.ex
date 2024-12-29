@@ -1,4 +1,5 @@
 defmodule Spacetraders.Bot.Trader.AutoTrader do
+  require Logger
   use GenServer  
 
   defmodule State do
@@ -34,6 +35,12 @@ defmodule Spacetraders.Bot.Trader.AutoTrader do
 
   def handle_info({:DOWN, _, :process, _, :normal}, state) do
     state = start_mining(state) 
+
+    {:noreply, state}
+  end
+
+  def handle_info(msg, state) do
+    Logger.info(msg: msg) 
 
     {:noreply, state}
   end
