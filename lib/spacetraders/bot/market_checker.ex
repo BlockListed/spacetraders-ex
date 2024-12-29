@@ -72,12 +72,12 @@ defmodule Spacetraders.Bot.MarketChecker do
     if !Enum.empty?(state.waiting) do
       Logger.info(len: state.waiting |> Enum.count())
 
-      no_moving = assign_no_moving(state.waiting, markets)
+      no_moving = assign_no_moving(state.waiting, markets) |> dbg
 
       markets = markets -- (no_moving |> Enum.map(&elem(&1, 1)))
       waiting = state.waiting -- (no_moving |> Enum.map(&elem(&1, 0)))
 
-      Enum.each(no_moving, &GenServer.reply(elem(&1, 0), elem(&1, 1)))
+      Enum.each(no_moving, &GenServer.reply(elem(&1, 0) |> elem(1), elem(&1, 1)))
 
       state = struct!(state, waiting: waiting)
 

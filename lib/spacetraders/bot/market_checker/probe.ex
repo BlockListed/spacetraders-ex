@@ -59,9 +59,9 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
   def running(a, :run, {ship, location, server}) when a in [:internal, :timeout] do
     to_check = MarketChecker.get_market(server, location)
 
-    Logger.info("DRY_RUN: Moving #{ship} from #{location}, to #{to_check}")
+    Logger.info("Checking market #{to_check}!")
 
-    if location != to_check && false do
+    if location != to_check do
       {:ok, nav} = API.navigate_ship(ship, to_check)
       cd = API.cooldown_ms(nav)
 
@@ -72,7 +72,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
       Logger.info("#{ship} not moving.")
     end
 
-    #Market.update_market_data(to_check)
+    Market.update_market_data(to_check)
 
     {:keep_state, {ship, to_check, server}, [{:next_event, :internal, :run}]}
   end
