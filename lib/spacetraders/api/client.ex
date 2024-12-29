@@ -113,6 +113,37 @@ defmodule Spacetraders.API.Client do
     post("/my/ships/#{ship}/refuel", %{})
   end
 
+  def create_survey(ship) do
+    post("/my/ships/#{ship}/survey", %{})
+  end
+
+  def extract_resources(ship) do
+    post("/my/ships/#{ship}/extract", %{})
+  end
+
+  def extract_resources_with_survey(ship, survey) do
+    post("/my/ships/#{ship}/extract/survey", survey)
+  end
+
+  def siphon_resources(ship) do
+    post("/my/ships/#{ship}/siphon", %{})
+  end
+
+  def jettison_cargo(ship, symbol, units) do
+    post("/my/ships/#{ship}/jettison", %{
+      symbol: symbol,
+      units: units,
+    })
+  end
+
+  def transfer_cargo(from_ship, to_ship, symbol, units) do
+    post("/my/ships/#{from_ship}/transfer", %{
+      tradeSymbol: symbol,
+      units: units,
+      shipSymbol: to_ship,
+    })
+  end
+
   defp waypoint_url(waypoint) do
     system = Spacetraders.API.extract_system(waypoint)
 

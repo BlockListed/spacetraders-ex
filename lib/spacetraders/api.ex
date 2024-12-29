@@ -114,6 +114,30 @@ defmodule Spacetraders.API do
     cvt(Client.refuel_ship(ship))
   end
 
+  def create_survey(ship) do
+    cvt(Client.create_survey(ship))
+  end
+
+  def extract_resources(ship) do
+    cvt(Client.extract_resources(ship))
+  end
+
+  def extract_resources_with_survey(ship, survey) do
+    cvt(Client.extract_resources_with_survey(ship, survey))
+  end
+
+  def siphon_resources(ship) do
+    cvt(Client.siphon_resources(ship))
+  end
+
+  def jettison_cargo(ship, symbol, units) do
+    cvt(Client.jettison_cargo(ship, symbol, units))
+  end
+
+  def transfer_cargo(from_ship, to_ship, symbol, units) do
+    cvt(Client.transfer_cargo(from_ship, to_ship, symbol, units))
+  end
+
   defp cvt({_, %Tesla.Env{}} = resp) do
     with {:ok, %Tesla.Env{status: status, body: body}} when status in 200..299 <- resp do
       {:ok, body["data"]}
