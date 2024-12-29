@@ -17,7 +17,7 @@ defmodule Spacetraders.Market do
 
   def enter_market_data(data) do
     if Map.has_key?(data, "tradeGoods") do
-      :dets.insert(__MODULE__, [{data["symbol"], data}])
+      :dets.insert(__MODULE__, [{data["symbol"], data, System.system_time(:millisecond)}])
     else
       Logger.warning("Invalid market data submitted, no ship at market! #{inspect(data)}")
     end
@@ -35,7 +35,7 @@ defmodule Spacetraders.Market do
 
   def get(symbol) do
     case :dets.lookup(__MODULE__, symbol) do
-      [{_, market}] -> {:some, market}
+      [{_, market, _}] -> {:some, market}
       [] -> :none
     end
   end
