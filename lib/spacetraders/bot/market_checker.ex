@@ -39,10 +39,10 @@ defmodule Spacetraders.Bot.MarketChecker do
         ]) :: [{{String.t(), GenServer.from()}, String.t()}]
   def assign_no_moving(ships, markets, acc \\ []) do
     cond do
-      Enum.empty?(ships) ->
+      Enum.empty?(ships) || Enum.empty?(markets) ->
         acc
 
-      !Enum.empty?(markets) ->
+      true ->
         [try_assign | rest] = markets
 
         maybe_assigned =
