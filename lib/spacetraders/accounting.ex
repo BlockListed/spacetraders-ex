@@ -1,8 +1,27 @@
 defmodule Spacetraders.Accounting do
+  alias Spacetraders.Accounting
   use Agent
 
+  def initial_state() do
+    state = {%{}, []}
+
+    {_, state} = upd_create_account(state, :initial_funds, [:credit_balance])
+    {_, state} = upd_create_account(state, :funds, [:debit_balance])
+
+    {:ok, agent} = Spacetraders.API.agent()
+
+    {_, state} = upd_transact(state, :funds, :initial_funds, agent["credits"])
+    
+    # Trading accounts
+    {_, state} = upd_create_account(state, :trading_cogs, [:debit_balance])
+    {_, state} = upd_create_account(state, :trading_sales_income, [:credit_balance])
+    {_, state} = upd_create_account(state, :trading_operating_expenses, [:debit_balance])
+
+    state
+  end
+
   def start_link(opts) do
-    Agent.start_link(fn -> {%{}, []} end, opts)
+    Agent.start_link(__MODULE__, :initial_state, [], opts)
   end
 
   defmodule Account do
@@ -11,9 +30,13 @@ defmodule Spacetraders.Accounting do
 
     @type id :: reference() | atom()
 
+    @typedoc """
+    `:debit_balance` means credits_must_not_exceed_debits and
+    `:credit_balance` means debits_must_not_exceed_credits.
+    """
     @type option ::
-            :debits_must_not_exceed_credits
-            | :credits_must_not_exceed_debits
+            :debit_balance
+            | :credit_balance
 
     @type t :: %Account{
             id: id(),
@@ -34,8 +57,8 @@ defmodule Spacetraders.Accounting do
 
     @spec check_account_valid(t()) :: :ok | :error
     def check_account_valid(account) do
-      debits_no_exceed = :debits_must_not_exceed_credits in account.flags
-      credits_no_exceed = :credits_must_not_exceed_debits in account.flags
+      debits_no_exceed = :credit_balance in account.flags
+      credits_no_exceed = :debit_balance in account.flags
 
       case {debits_no_exceed, credits_no_exceed} do
         {true, true} ->
@@ -101,11 +124,11 @@ defmodule Spacetraders.Accounting do
 
     accounts = Map.put_new(accounts, id, account)
 
-    {accounts, transactions}
+    {account, {accounts, transactions}}
   end
 
   @spec transact(Agent.agent(), Account.id(), Account.id(), non_neg_integer()) ::
-          :ok | {:error, String.t()}
+          {:ok, Transaction.t()} | {:error, String.t()}
   def transact(server, debit_account, credit_account, amount) do
     Agent.get_and_update(server, __MODULE__, :upd_transact, [debit_account, credit_account, amount])
   end
@@ -130,12 +153,50 @@ defmodule Spacetraders.Accounting do
 
         transactions = [transaction | transactions]
 
-        {:ok, {accounts, transactions}}
+        {{:ok, transaction}, {accounts, transactions}}
       else
         _ -> {{:error, "An account went negative!"}, state}
       end
     else
       _ -> {{:error, "One of the accounts doesn't exist!"}, state}
+    end
+  end
+
+  @spec get_account(Agent.agent(), Account.id()) :: {:some, Account.t()} | :none
+  def get_account(server, account) do
+    Agent.get(server, __MODULE__, :get_get_account, [account]) 
+  end
+
+  @doc false
+  def get_get_account({accounts, _}, account) do
+    case Map.fetch(accounts, account) do
+      {:ok, account} -> {:some, account}
+      :error -> :none
+    end
+  end
+
+  # TODO
+  @spec close_account(Agent.agent(), Account.id(), Account.id()) :: {:ok, Transaction.t()} | {:error, String.t()}
+  def close_account(server, account, against) do
+    Agent.get_and_update(server, __MODULE__, :upd_close_account, [account, against]) 
+  end
+
+  @doc false
+  def upd_close_account(state, account, against) do
+    case get_get_account(state, account) do
+      {:some, %Account{}=account} ->
+        delta = account.debits - account.credits
+
+        cond do
+          delta > 0 ->
+            upd_transact(state, against, account.id, delta)
+          delta == 0 ->
+            # yeah maybe doing a zero transaction is stupid, but we always return a transaction
+            upd_transact(state, account.id, against, 0)
+          delta < 0 ->
+            upd_transact(state, account.id, against, -delta)
+        end
+      :none -> {{:error, "One of the accounts doesn't exist!"}, state}
     end
   end
 end
