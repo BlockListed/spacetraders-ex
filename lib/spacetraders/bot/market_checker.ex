@@ -17,21 +17,21 @@ defmodule Spacetraders.Bot.MarketChecker do
     {:ok, %State{}}
   end
 
-  def get_market(server, current_location) do
+  def get_market(current_location) do
     # We could be waiting for a while
-    GenServer.call(server, {:get, current_location}, :infinity)
+    GenServer.call(__MODULE__, {:get, current_location}, :infinity)
   end
 
-  def check_market(server, market) do
-    GenServer.cast(server, {:check, market})
+  def check_market(market) do
+    GenServer.cast(__MODULE__, {:check, market})
   end
 
-  def check_system(server, system) do
+  def check_system(system) do
     {:ok, markets} = API.get_markets(system)
 
     markets = markets |> Enum.map(&Map.fetch!(&1, "symbol"))
 
-    GenServer.cast(server, {:check_multiple, markets})
+    GenServer.cast(__MODULE__, {:check_multiple, markets})
   end
 
   @spec assign_no_moving([{String.t(), GenServer.from()}], [String.t()], [
