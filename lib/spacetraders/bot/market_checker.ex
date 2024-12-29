@@ -152,7 +152,6 @@ defmodule Spacetraders.Bot.MarketChecker do
     case closest_market do
       nil ->
         state = struct!(state, waiting: [{current_location, from} | state.waiting])
-        Logger.info("No market to check, #{state.waiting |> Enum.count()} waiting.")
         {:noreply, state}
 
       market ->

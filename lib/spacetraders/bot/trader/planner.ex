@@ -86,8 +86,8 @@ defmodule Spacetraders.Bot.Trader.Planner do
     end
   end
 
-  @spec plan(String.t()) :: Market.TradeRoute.t()
-  def plan(system) do
+  @spec plan(String.t(), :profit | :profit_per_dist) :: Market.TradeRoute.t()
+  def plan(system, rating) do
     markets = Spacetraders.Market.get_all_in_system(system)
 
     import_map =
@@ -119,10 +119,15 @@ defmodule Spacetraders.Bot.Trader.Planner do
       |> Stream.concat()
       |> Enum.to_list()
 
-    highest_profit_per_dist =
-      get_best_trade_route_by(trade_routes, &(get_profit_per_unit(&1) / get_distance(&1)))
+    rating_function = case rating do
+      :profit -> &get_profit_per_unit/1
+      :profit_per_dist -> &(get_profit_per_unit(&1) / get_distance(&1))
+    end
 
-    Market.TradeRoute.from_tr(highest_profit_per_dist)
+    best_route =
+      get_best_trade_route_by(trade_routes, rating_function)
+
+    Market.TradeRoute.from_tr(best_route)
   end
 
   @spec get_best_trade_route_by([Market.tr()], (Market.tr() -> number())) ::

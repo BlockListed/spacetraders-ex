@@ -1,4 +1,5 @@
 defmodule Spacetraders.Market do
+  alias Spacetraders.Model
   alias Spacetraders.API
   require Logger
 
@@ -57,5 +58,39 @@ defmodule Spacetraders.Market do
     |> Stream.map(&elem(&1, 1))
     |> Stream.filter(&(API.extract_system(&1["symbol"]) == system))
     |> Enum.to_list()
+  end
+
+  def highest_sell_price_for_in(system, symbol) do
+    res =
+      get_all_in_system(system)
+      |> Stream.flat_map(fn market ->
+        case Model.Market.get_trade(market, symbol) do
+          {:some, trade} -> [{market["symbol"], trade}]
+          :none -> []
+        end
+      end)
+      |> Enum.max_by(&elem(&1, 1)["sellPrice"])
+
+    case res do
+      nil -> :none
+      res -> {:some, res}
+    end
+  end
+
+  def lowest_buy_price_for_in(system, symbol) do
+    res =
+      get_all_in_system(system)
+      |> Stream.flat_map(fn market ->
+        case Model.Market.get_trade(market, symbol) do
+          {:some, trade} -> [{market["symbol"], trade}]
+          :none -> []
+        end
+      end)
+      |> Enum.min_by(&elem(&1, 1)["purchasePrice"])
+
+    case res do
+      nil -> :none
+      res -> {:some, res}
+    end
   end
 end

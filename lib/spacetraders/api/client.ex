@@ -53,6 +53,11 @@ defmodule Spacetraders.API.Client do
     )
   end
 
+  def get_jump_gates(system, page \\ 1) do
+    get("/systems/#{system}/waypoints",
+      query: [limit: "20", page: to_string(page), type: "JUMP_GATE"])
+  end
+
   def get_waypoint(waypoint) do
     get(waypoint_url(waypoint))
   end

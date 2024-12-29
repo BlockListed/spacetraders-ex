@@ -48,6 +48,10 @@ defmodule Spacetraders.API do
     paginated(&Client.get_shipyards(system, &1))
   end
 
+  def get_jump_gates(system) do
+    paginated(&Client.get_jump_gates(system, &1))
+  end
+
   def get_waypoint(waypoint) do
     case Spacetraders.API.Caching.Waypoints.get_waypoint(waypoint) do
       {:some, waypoint_info} ->

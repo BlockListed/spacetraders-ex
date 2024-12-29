@@ -4,17 +4,20 @@ defmodule Spacetraders.Accounting do
   def initial_state() do
     state = {%{}, []}
 
+    # Equity
     {_, state} = upd_create_account(state, :equity_funds, [:credit_balance])
+
+    # Assets
+    {_, state} = upd_create_account(state, :assets_ships, [:debit_balance])
     {_, state} = upd_create_account(state, :funds, [:debit_balance])
-
-    {:ok, agent} = Spacetraders.API.agent()
-
-    {_, state} = upd_transact(state, :funds, :equity_funds, agent["credits"])
 
     # Trading accounts
     {_, state} = upd_create_account(state, :trading_cogs, [:debit_balance])
     {_, state} = upd_create_account(state, :trading_sales_income, [:credit_balance])
     {_, state} = upd_create_account(state, :trading_operating_expenses, [:debit_balance])
+
+    {:ok, agent} = Spacetraders.API.agent()
+    {_, state} = upd_transact(state, :funds, :equity_funds, agent["credits"])
 
     state
   end
