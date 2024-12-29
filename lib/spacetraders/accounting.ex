@@ -11,7 +11,7 @@ defmodule Spacetraders.Accounting do
     {:ok, agent} = Spacetraders.API.agent()
 
     {_, state} = upd_transact(state, :funds, :initial_funds, agent["credits"])
-    
+
     # Trading accounts
     {_, state} = upd_create_account(state, :trading_cogs, [:debit_balance])
     {_, state} = upd_create_account(state, :trading_sales_income, [:credit_balance])
@@ -130,7 +130,11 @@ defmodule Spacetraders.Accounting do
   @spec transact(Agent.agent(), Account.id(), Account.id(), non_neg_integer()) ::
           {:ok, Transaction.t()} | {:error, String.t()}
   def transact(server, debit_account, credit_account, amount) do
-    Agent.get_and_update(server, __MODULE__, :upd_transact, [debit_account, credit_account, amount])
+    Agent.get_and_update(server, __MODULE__, :upd_transact, [
+      debit_account,
+      credit_account,
+      amount
+    ])
   end
 
   @doc false
@@ -164,7 +168,7 @@ defmodule Spacetraders.Accounting do
 
   @spec get_account(Agent.agent(), Account.id()) :: {:some, Account.t()} | :none
   def get_account(server, account) do
-    Agent.get(server, __MODULE__, :get_get_account, [account]) 
+    Agent.get(server, __MODULE__, :get_get_account, [account])
   end
 
   @doc false
@@ -176,27 +180,32 @@ defmodule Spacetraders.Accounting do
   end
 
   # TODO
-  @spec close_account(Agent.agent(), Account.id(), Account.id()) :: {:ok, Transaction.t()} | {:error, String.t()}
+  @spec close_account(Agent.agent(), Account.id(), Account.id()) ::
+          {:ok, Transaction.t()} | {:error, String.t()}
   def close_account(server, account, against) do
-    Agent.get_and_update(server, __MODULE__, :upd_close_account, [account, against]) 
+    Agent.get_and_update(server, __MODULE__, :upd_close_account, [account, against])
   end
 
   @doc false
   def upd_close_account(state, account, against) do
     case get_get_account(state, account) do
-      {:some, %Account{}=account} ->
+      {:some, %Account{} = account} ->
         delta = account.debits - account.credits
 
         cond do
           delta > 0 ->
             upd_transact(state, against, account.id, delta)
+
           delta == 0 ->
             # yeah maybe doing a zero transaction is stupid, but we always return a transaction
             upd_transact(state, account.id, against, 0)
+
           delta < 0 ->
             upd_transact(state, account.id, against, -delta)
         end
-      :none -> {{:error, "One of the accounts doesn't exist!"}, state}
+
+      :none ->
+        {{:error, "One of the accounts doesn't exist!"}, state}
     end
   end
 end
