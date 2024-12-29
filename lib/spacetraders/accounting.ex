@@ -1,16 +1,15 @@
 defmodule Spacetraders.Accounting do
-  alias Spacetraders.Accounting
   use Agent
 
   def initial_state() do
     state = {%{}, []}
 
-    {_, state} = upd_create_account(state, :initial_funds, [:credit_balance])
+    {_, state} = upd_create_account(state, :equity_funds, [:credit_balance])
     {_, state} = upd_create_account(state, :funds, [:debit_balance])
 
     {:ok, agent} = Spacetraders.API.agent()
 
-    {_, state} = upd_transact(state, :funds, :initial_funds, agent["credits"])
+    {_, state} = upd_transact(state, :funds, :equity_funds, agent["credits"])
 
     # Trading accounts
     {_, state} = upd_create_account(state, :trading_cogs, [:debit_balance])
@@ -64,18 +63,18 @@ defmodule Spacetraders.Accounting do
         {true, true} ->
           :error
 
-        {true, false} ->
-          if debit_account_balance(account) > 0 do
-            :ok
-          else
+        {false, true} ->
+          if debit_account_balance(account) < 0 do
             :error
+          else
+            :ok
           end
 
-        {false, true} ->
-          if credit_account_balance(account) > 0 do
-            :ok
-          else
+        {true, false} ->
+          if credit_account_balance(account) < 0 do
             :error
+          else
+            :ok
           end
 
         {false, false} ->
@@ -108,14 +107,14 @@ defmodule Spacetraders.Accounting do
   @type state :: {map(), [Transaction.t()]}
 
   @spec create_account(Agent.agent(), [Account.option()], nil | atom()) :: Account.t()
-  def create_account(server, flags \\ [], id \\ nil) do
+  def create_account(server, id \\ nil, flags \\ []) do
     id = if(id == nil, do: make_ref(), else: id)
 
-    Agent.get_and_update(server, __MODULE__, :upd_create_account, [flags, id])
+    Agent.get_and_update(server, __MODULE__, :upd_create_account, [id, flags])
   end
 
   @doc false
-  def upd_create_account({accounts, transactions}, flags, id) do
+  def upd_create_account({accounts, transactions}, id, flags) do
     account = %Account{id: id, flags: flags}
 
     if Map.has_key?(accounts, id) do
@@ -153,7 +152,7 @@ defmodule Spacetraders.Accounting do
       with :ok <- Account.check_account_valid(debit_account),
            :ok <- Account.check_account_valid(credit_account) do
         accounts = Map.put(accounts, debit_account.id, debit_account)
-        accounts = Map.put(accounts, debit_account.id, debit_account)
+        accounts = Map.put(accounts, credit_account.id, credit_account)
 
         transactions = [transaction | transactions]
 
