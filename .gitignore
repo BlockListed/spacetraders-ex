@@ -24,7 +24,7 @@ spacetraders-*.tar
 
 .env
 
-./caches
+/caches
 markets.jsonl
 markets.json
 test_data.json

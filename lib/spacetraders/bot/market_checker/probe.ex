@@ -14,7 +14,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
 
   def start_link(opts) do
     ship = Keyword.fetch!(opts, :ship)
-    server = Keyword.fetch!(opts, :market_checker)
+    server = Keyword.fetch!(opts, :server)
 
     name = :"Spacetraders.Bot.MarketChecker.Probe.#{ship}"
 
@@ -22,7 +22,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
   end
 
   def init({ship, server}) do
-    Logger.info("Starting probe #{server}!")
+    Logger.info("Starting probe #{ship}!")
 
     {:ok, ship_data} = API.get_ship(ship)
 
@@ -38,6 +38,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
 
       "IN_TRANSIT" ->
         cd = API.cooldown_ms(ship_data)
+        Logger.warning("Waiting for probe to arrive, #{cd}ms.")
         {:ok, :running, {ship, location, server}, [{:timeout, cd, :run}]}
     end
   end
@@ -58,18 +59,21 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
   def running(a, :run, {ship, location, server}) when a in [:internal, :timeout] do
     to_check = MarketChecker.get_market(server, location)
 
-    if location != to_check do
-      Logger.info("Moving #{ship} to #{to_check}")
+    Logger.info("DRY_RUN: Moving #{ship} from #{location}, to #{to_check}")
+
+    if location != to_check && false do
       {:ok, nav} = API.navigate_ship(ship, to_check)
       cd = API.cooldown_ms(nav)
 
+      Logger.info("Moving #{ship} to #{to_check}. Time: #{cd}ms.")
+
       Process.sleep(cd)
     else
-      Logger.info("#{ship} not moving")
+      Logger.info("#{ship} not moving.")
     end
 
-    Market.update_market_data(to_check)
+    #Market.update_market_data(to_check)
 
-    {:keep_state_and_data, [{:next_event, :internal, :run}]}
+    {:keep_state, {ship, to_check, server}, [{:next_event, :internal, :run}]}
   end
 end
