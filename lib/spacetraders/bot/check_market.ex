@@ -139,7 +139,6 @@ defmodule Spacetraders.Bot.CheckMarket.SearchManager do
     end
 
     cd = API.cooldown_ms(ship)
-    Logger.info("Sleeping for #{cd}ms")
     Process.sleep(cd)
 
     fly_route = fn waypoints ->
