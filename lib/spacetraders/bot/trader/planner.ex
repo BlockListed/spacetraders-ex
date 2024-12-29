@@ -17,7 +17,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
       @type t :: %TradeRoute{symbol: String.t(), from: String.t(), to: String.t()}
 
       @spec buy_volume(t()) :: number()
-      def buy_volume(%TradeRoute{}=route) do
+      def buy_volume(%TradeRoute{} = route) do
         {:some, market} = Spacetraders.Market.get(route.from)
 
         {:some, trade} = Model.Market.get_trade(market, route.symbol)
@@ -26,7 +26,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
       end
 
       @spec buy_price(t()) :: number()
-      def buy_price(%TradeRoute{}=route) do
+      def buy_price(%TradeRoute{} = route) do
         {:some, market} = Spacetraders.Market.get(route.from)
 
         {:some, trade} = Model.Market.get_trade(market, route.symbol)
@@ -35,7 +35,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
       end
 
       @spec sell_volume(t()) :: number()
-      def sell_volume(%TradeRoute{}=route) do
+      def sell_volume(%TradeRoute{} = route) do
         {:some, market} = Spacetraders.Market.get(route.to)
 
         {:some, trade} = Model.Market.get_trade(market, route.symbol)
@@ -44,7 +44,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
       end
 
       @spec buy_price(t()) :: number()
-      def sell_price(%TradeRoute{}=route) do
+      def sell_price(%TradeRoute{} = route) do
         {:some, market} = Spacetraders.Market.get(route.to)
 
         {:some, trade} = Model.Market.get_trade(market, route.symbol)
@@ -60,8 +60,15 @@ defmodule Spacetraders.Bot.Trader.Planner do
         {:some, buy_trade} = Model.Market.get_trade(buy_market, route.symbol)
         {:some, sell_trade} = Model.Market.get_trade(sell_market, route.symbol)
 
-        buy = %Spacetraders.Bot.Trader.Planner.Market{symbol: buy_market["symbol"], trade: buy_trade}
-        sell = %Spacetraders.Bot.Trader.Planner.Market{symbol: sell_market["symbol"], trade: sell_trade}
+        buy = %Spacetraders.Bot.Trader.Planner.Market{
+          symbol: buy_market["symbol"],
+          trade: buy_trade
+        }
+
+        sell = %Spacetraders.Bot.Trader.Planner.Market{
+          symbol: sell_market["symbol"],
+          trade: sell_trade
+        }
 
         Spacetraders.Bot.Trader.Planner.get_profit_per_unit({buy, sell})
       end
@@ -77,7 +84,6 @@ defmodule Spacetraders.Bot.Trader.Planner do
         %TradeRoute{symbol: symbol, from: from, to: to}
       end
     end
-
   end
 
   @spec plan(String.t()) :: Market.TradeRoute.t()

@@ -1,6 +1,6 @@
 defmodule Spacetraders.Bot.Trader.AutoTrader do
   require Logger
-  use GenServer  
+  use GenServer
 
   defmodule State do
     @enforce_keys [:ship, :system, :funds]
@@ -15,7 +15,7 @@ defmodule Spacetraders.Bot.Trader.AutoTrader do
     GenServer.start_link(__MODULE__, {ship, system, funds}, opts)
   end
 
-  def start_mining(%State{}=state) do
+  def start_mining(%State{} = state) do
     {:ok, pid} = Spacetraders.Bot.Trader.Manager.do_trading(state.ship, state.system, state.funds)
 
     Process.monitor(pid)
@@ -34,13 +34,13 @@ defmodule Spacetraders.Bot.Trader.AutoTrader do
   end
 
   def handle_info({:DOWN, _, :process, _, :normal}, state) do
-    state = start_mining(state) 
+    state = start_mining(state)
 
     {:noreply, state}
   end
 
   def handle_info(msg, state) do
-    Logger.info(msg: msg) 
+    Logger.info(msg: msg)
 
     {:noreply, state}
   end

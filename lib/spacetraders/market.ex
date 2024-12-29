@@ -29,7 +29,9 @@ defmodule Spacetraders.Market do
       {:ok, market} ->
         enter_market_data(market)
         :ok
-      res -> res
+
+      res ->
+        res
     end
   end
 

@@ -200,7 +200,7 @@ defmodule Spacetraders.Bot.Trader do
   end
 
   @spec do_buy(State.t()) :: State.t()
-  defp do_buy(%State{}=data) do
+  defp do_buy(%State{} = data) do
     trade_volume = TradeRoute.buy_volume(data.trade_route)
     price = TradeRoute.buy_price(data.trade_route)
 

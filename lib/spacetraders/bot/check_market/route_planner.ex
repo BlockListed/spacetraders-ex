@@ -47,19 +47,20 @@ defmodule Spacetraders.Bot.CheckMarket.RoutePlanner do
 
     # yes, this is the best I could think of.
     # atleast it's multithreaded.
-    {routes, dist} = 1..128
-    |> Task.async_stream(
-      fn _ ->
-        waypoints = Enum.shuffle(waypoints)
+    {routes, dist} =
+      1..128
+      |> Task.async_stream(
+        fn _ ->
+          waypoints = Enum.shuffle(waypoints)
 
-        routes = assign_naive(ships, waypoints)
-        {routes, route_cost(routes)}
-      end,
-      timeout: 120_000,
-      ordered: false
-    )
-    |> Stream.map(fn {:ok, res} -> res end)
-    |> Enum.min_by(&elem(&1, 1))
+          routes = assign_naive(ships, waypoints)
+          {routes, route_cost(routes)}
+        end,
+        timeout: 120_000,
+        ordered: false
+      )
+      |> Stream.map(fn {:ok, res} -> res end)
+      |> Enum.min_by(&elem(&1, 1))
 
     Logger.info("Choosing route with max dist #{dist}!")
 
