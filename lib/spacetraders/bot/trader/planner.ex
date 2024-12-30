@@ -86,8 +86,8 @@ defmodule Spacetraders.Bot.Trader.Planner do
     end
   end
 
-  @spec plan(String.t(), :profit | :profit_per_dist) :: Market.TradeRoute.t()
-  def plan(system, rating) do
+  @spec trade_routes_tr(String.t()) :: [Market.tr()]
+  def trade_routes_tr(system) do
     markets = Spacetraders.Market.get_all_in_system(system)
 
     import_map =
@@ -106,23 +106,33 @@ defmodule Spacetraders.Bot.Trader.Planner do
         end)
       end)
 
-    trade_routes =
-      Stream.map(markets, fn market ->
-        Stream.filter(market["tradeGoods"], &(&1["type"] == "EXPORT"))
-        |> Stream.map(&%Market{symbol: market["symbol"], trade: &1})
-        |> Stream.map(fn trade ->
-          Map.get(import_map, trade.trade["symbol"], [])
-          |> Stream.map(&{trade, &1})
-        end)
+    Stream.map(markets, fn market ->
+      Stream.filter(market["tradeGoods"], &(&1["type"] == "EXPORT"))
+      |> Stream.map(&%Market{symbol: market["symbol"], trade: &1})
+      |> Stream.map(fn trade ->
+        Map.get(import_map, trade.trade["symbol"], [])
+        |> Stream.map(&{trade, &1})
       end)
-      |> Stream.concat()
-      |> Stream.concat()
-      |> Enum.to_list()
+    end)
+    |> Stream.concat()
+    |> Stream.concat()
+    |> Enum.to_list()
+  end
 
-    rating_function = case rating do
-      :profit -> &get_profit_per_unit/1
-      :profit_per_dist -> &(get_profit_per_unit(&1) / get_distance(&1))
-    end
+  def trade_routes(system) do
+    trade_routes_tr(system)
+      |> Enum.map(&Market.TradeRoute.from_tr/1)
+  end
+
+  @spec plan(String.t(), :profit | :profit_per_dist) :: Market.TradeRoute.t()
+  def plan(system, rating) do
+    trade_routes = trade_routes_tr(system)
+
+    rating_function =
+      case rating do
+        :profit -> &get_profit_per_unit/1
+        :profit_per_dist -> &(get_profit_per_unit(&1) / get_distance(&1))
+      end
 
     best_route =
       get_best_trade_route_by(trade_routes, rating_function)
