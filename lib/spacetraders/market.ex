@@ -18,7 +18,11 @@ defmodule Spacetraders.Market do
 
   def enter_market_data(data) do
     if Map.has_key?(data, "tradeGoods") do
-      :dets.insert(__MODULE__, [{data["symbol"], data, System.system_time(:millisecond)}])
+      curr_time = System.system_time(:millisecond)
+      waypoint = data["symbol"]
+      system = API.extract_system(waypoint)
+
+      :dets.insert(__MODULE__, [{waypoint, data, system, curr_time}])
     else
       Logger.warning("Invalid market data submitted, no ship at market! #{inspect(data)}")
     end
@@ -38,37 +42,42 @@ defmodule Spacetraders.Market do
 
   def get(symbol) do
     case :dets.lookup(__MODULE__, symbol) do
-      [{_, market, _}] -> {:some, market}
+      [{_, market, _, _}] -> {:some, market}
       [] -> :none
     end
   end
 
   def get_all() do
     :dets.foldr(fn val, acc -> [val | acc] end, [], __MODULE__)
+    |> Enum.map(&elem(&1, 1))
   end
 
   def get_all_to_file(path) do
-    all = get_all() |> Enum.map(&elem(&1, 1))
+    all = get_all()
 
     File.write!(path, Jason.encode_to_iodata!(all))
   end
 
   def get_all_in_system(system) do
-    get_all()
+    :dets.match_object(__MODULE__, {:_, :_, system, :_})
     |> Stream.map(&elem(&1, 1))
-    |> Stream.filter(&(API.extract_system(&1["symbol"]) == system))
+    |> Enum.to_list()
+  end
+
+  def get_all_trades_for(system, symbol) do
+    get_all_in_system(system)
+    |> Stream.flat_map(fn market ->
+      case Model.Market.get_trade(market, symbol) do
+        {:some, trade} -> [{market["symbol"], trade}]
+        :none -> []
+      end
+    end)
     |> Enum.to_list()
   end
 
   def highest_sell_price_for_in(system, symbol) do
     res =
-      get_all_in_system(system)
-      |> Stream.flat_map(fn market ->
-        case Model.Market.get_trade(market, symbol) do
-          {:some, trade} -> [{market["symbol"], trade}]
-          :none -> []
-        end
-      end)
+      get_all_trades_for(system, symbol)
       |> Enum.max_by(&elem(&1, 1)["sellPrice"])
 
     case res do
@@ -79,13 +88,7 @@ defmodule Spacetraders.Market do
 
   def lowest_buy_price_for_in(system, symbol) do
     res =
-      get_all_in_system(system)
-      |> Stream.flat_map(fn market ->
-        case Model.Market.get_trade(market, symbol) do
-          {:some, trade} -> [{market["symbol"], trade}]
-          :none -> []
-        end
-      end)
+      get_all_trades_for(system, symbol)
       |> Enum.min_by(&elem(&1, 1)["purchasePrice"])
 
     case res do
