@@ -58,6 +58,19 @@ defmodule Spacetraders.API.Client do
       query: [limit: "20", page: to_string(page), type: "JUMP_GATE"])
   end
 
+  def list_filtered_waypoints(system, traits, type, page \\ 1) do
+    trait_query = Enum.map(traits, &{:traits, &1})
+    type_query = case type do
+      nil -> []
+      type -> [type: type]
+    end
+
+    filter_query = type_query ++ trait_query
+
+    get("/systems/#{system}/waypoints",
+      query: filter_query ++ [limit: "20", page: to_string(page)])
+  end
+
   def get_waypoint(waypoint) do
     get(waypoint_url(waypoint))
   end
@@ -109,8 +122,10 @@ defmodule Spacetraders.API.Client do
     })
   end
 
-  def refuel_ship(ship) do
-    post("/my/ships/#{ship}/refuel", %{})
+  def refuel_ship(ship, from_cargo) do
+    post("/my/ships/#{ship}/refuel", %{
+      fromCargo: from_cargo
+    })
   end
 
   def create_survey(ship) do

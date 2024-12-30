@@ -2,6 +2,7 @@ defmodule Spacetraders.Bot.Trader do
   require Logger
   alias Spacetraders.Bot.Trader.Planner.Market.TradeRoute
   alias Spacetraders.API
+  alias Spacetraders.Cooldown
   @behaviour :gen_statem
 
   defmodule State do
@@ -76,7 +77,7 @@ defmodule Spacetraders.Bot.Trader do
 
     if ship_nav["status"] == "IN_TRANSIT" do
       # TODO: make this api not stupid
-      cd = API.cooldown_ms(%{"nav" => ship_nav})
+      cd = Cooldown.cooldown_ms(%{"nav" => ship_nav})
       {:ok, :waiting, data, {:state_timeout, cd, :arrived}}
     else
       {:ok, :initial, data, {:next_event, :internal, :init}}
@@ -114,7 +115,7 @@ defmodule Spacetraders.Bot.Trader do
     if data.ship_location != sell_location do
       {:ok, nav} = API.navigate_ship(data.ship, sell_location)
 
-      cd = API.cooldown_ms(nav)
+      cd = Cooldown.cooldown_ms(nav)
 
       {:keep_state, %{data | ship_location: sell_location}, [{:state_timeout, cd, :arrived}]}
     else
@@ -175,7 +176,7 @@ defmodule Spacetraders.Bot.Trader do
     if data.ship_location != buy_location do
       {:ok, nav} = API.navigate_ship(data.ship, buy_location)
 
-      cd = API.cooldown_ms(nav)
+      cd = Cooldown.cooldown_ms(nav)
 
       {:keep_state, %{data | ship_location: buy_location}, [{:state_timeout, cd, :arrived}]}
     else

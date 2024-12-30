@@ -40,6 +40,10 @@ defmodule Spacetraders.API do
     paginated(&Client.list_waypoints(system, &1))
   end
 
+  def list_filtered_waypoints(system, traits, type \\ nil) do
+    paginated(&Client.list_filtered_waypoints(system, traits, type, &1))
+  end
+
   def get_markets(system) do
     paginated(&Client.get_markets(system, &1))
   end
@@ -110,8 +114,8 @@ defmodule Spacetraders.API do
     cvt(Client.sell_cargo(ship, symbol, units))
   end
 
-  def refuel_ship(ship) do
-    cvt(Client.refuel_ship(ship))
+  def refuel_ship(ship, from_cargo \\ false) do
+    cvt(Client.refuel_ship(ship, from_cargo))
   end
 
   def create_survey(ship) do
@@ -173,50 +177,6 @@ defmodule Spacetraders.API do
     {:error, "#{status} - #{body}"}
   end
 
-  def cooldown_ms(data) do
-    nav_wait =
-      if Map.has_key?(data, "nav") do
-        nav = data["nav"]
-
-        if nav["status"] == "IN_TRANSIT" do
-          {:ok, arrival, _} = DateTime.from_iso8601(nav["route"]["arrival"])
-          now = DateTime.now!("Etc/UTC")
-
-          DateTime.diff(arrival, now, :millisecond)
-        else
-          0
-        end
-      else
-        0
-      end
-
-    cooldown_wait =
-      if Map.has_key?(data, "cooldown") do
-        cooldown = data["cooldown"]
-
-        if Map.has_key?(cooldown, "expiration") do
-          {:ok, expiration, _} = DateTime.from_iso8601(cooldown["expiration"])
-          now = DateTime.now!("Etc/UTC")
-
-          DateTime.diff(expiration, now, :millisecond)
-        else
-          0
-        end
-      else
-        0
-      end
-
-    cd =
-      [nav_wait, cooldown_wait]
-      |> Enum.max()
-
-    if cd > 0 do
-      cd + 100
-    else
-      0
-    end
-  end
-
   @spec distance_between(String.t(), String.t()) :: number()
   def distance_between(wp1_sym, wp2_sym) when is_binary(wp1_sym) and is_binary(wp2_sym) do
     {:ok, wp1} = get_waypoint(wp1_sym)
@@ -231,9 +191,80 @@ defmodule Spacetraders.API do
     :math.sqrt(dx * dx + dy * dy)
   end
 
+  @spec closest_waypoint(Enumerable.t(String.t()), String.t()) :: String.t()
+  def closest_waypoint(waypoints, to) do
+    Enum.min_by(waypoints, &distance_between(to, &1)) 
+  end
+
   def extract_system(waypoint) do
     [system_one, system_two, _] = String.split(waypoint, "-")
 
     Enum.join([system_one, system_two], "-")
+  end
+end
+
+defmodule Spacetraders.Cooldown do
+  @spec transit_end(map()) :: {:some, DateTime.t()} | :none
+  def transit_end(data) do
+    if Map.has_key?(data, "nav") do
+      # call this function using the nav object
+      transit_end(data["nav"])
+    else
+      if data["status"] == "IN_TRANSIT" do
+        {:ok, transit_end, _} = DateTime.from_iso8601(data["route"]["arrival"])
+
+        {:some, transit_end}
+      else
+        :none 
+      end
+    end
+  end
+
+  @spec cooldown_end(map()) :: {:some, DateTime.t()} | :none
+  def cooldown_end(data) do
+    if Map.has_key?(data, "cooldown")  do
+      # call this function using the cooldown object
+      cooldown_end(data["cooldown"])
+    else
+      if Map.has_key?(data, "expiration") do
+        {:ok, cooldown_end, _}  = DateTime.from_iso8601(data["expiration"])
+
+        {:some, cooldown_end}
+      else
+        :none
+      end
+    end
+  end
+
+  def ms_until(datetime) do
+    now = DateTime.now!("Etc/UTC")
+
+    DateTime.diff(datetime, now, :millisecond)
+  end
+
+  def cooldown_ms(data) do
+    transit_end = transit_end(data)
+
+    cooldown_end = cooldown_end(data)
+
+    now = DateTime.now!("Etc/UTC")
+
+    transit_cd = case transit_end do
+      {:some, e} -> DateTime.diff(e, now, :millisecond)
+      :none -> 0
+    end
+    
+    cooldown_cd = case cooldown_end do
+      {:some, e} -> DateTime.diff(e, now, :millisecond)
+      :none -> 0
+    end
+
+    cd = max(transit_cd, cooldown_cd)
+
+    if cd > 0 do
+      cd + 100 
+    else
+      0
+    end
   end
 end

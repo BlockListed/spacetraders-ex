@@ -3,6 +3,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
   alias Spacetraders.Market
   alias Spacetraders.Bot.MarketChecker
   alias Spacetraders.API
+  alias Spacetraders.Cooldown
   @behaviour :gen_statem
 
   def child_spec(opts) do
@@ -37,7 +38,7 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
         {:ok, :running, {ship, location, server}, [{:next_event, :internal, :run}]}
 
       "IN_TRANSIT" ->
-        cd = API.cooldown_ms(ship_data)
+        cd = Cooldown.cooldown_ms(ship_data)
         Logger.warning("Waiting for probe to arrive, #{cd}ms.")
         {:ok, :running, {ship, location, server}, [{:timeout, cd, :run}]}
     end
@@ -57,13 +58,13 @@ defmodule Spacetraders.Bot.MarketChecker.Probe do
   end
 
   def running(a, :run, {ship, location, server}) when a in [:internal, :timeout] do
-    to_check = MarketChecker.get_market(server, location)
+    to_check = MarketChecker.get_market(location)
 
     Logger.info("Checking market #{to_check}!")
 
     if location != to_check do
       {:ok, nav} = API.navigate_ship(ship, to_check)
-      cd = API.cooldown_ms(nav)
+      cd = Cooldown.cooldown_ms(nav)
 
       Logger.info("Moving #{ship} to #{to_check}. Time: #{cd}ms.")
 
