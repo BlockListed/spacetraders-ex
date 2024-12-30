@@ -20,7 +20,7 @@ defmodule Spacetraders.Bot.Trader.AutoTrader do
 
     Process.monitor(pid)
 
-    :ok = Spacetraders.Bot.CheckMarket.check_system("X1-UY62")
+    :ok = Spacetraders.Bot.MarketChecker.check_system("X1-UY62")
 
     %{state | pid: pid}
   end
