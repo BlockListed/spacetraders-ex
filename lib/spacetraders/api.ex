@@ -142,6 +142,10 @@ defmodule Spacetraders.API do
     cvt(Client.transfer_cargo(from_ship, to_ship, symbol, units))
   end
 
+  def patch_nav(ship, flight_mode) do
+    cvt(Client.patch_nav(ship, flight_mode))
+  end
+
   defp cvt({_, %Tesla.Env{}} = resp) do
     with {:ok, %Tesla.Env{status: status, body: body}} when status in 200..299 <- resp do
       {:ok, body["data"]}
@@ -193,7 +197,7 @@ defmodule Spacetraders.API do
 
   @spec closest_waypoint(Enumerable.t(String.t()), String.t()) :: String.t()
   def closest_waypoint(waypoints, to) do
-    Enum.min_by(waypoints, &distance_between(to, &1)) 
+    Enum.min_by(waypoints, &distance_between(to, &1))
   end
 
   def extract_system(waypoint) do
@@ -215,24 +219,48 @@ defmodule Spacetraders.Cooldown do
 
         {:some, transit_end}
       else
-        :none 
+        :none
       end
     end
   end
 
   @spec cooldown_end(map()) :: {:some, DateTime.t()} | :none
   def cooldown_end(data) do
-    if Map.has_key?(data, "cooldown")  do
+    if Map.has_key?(data, "cooldown") do
       # call this function using the cooldown object
       cooldown_end(data["cooldown"])
     else
       if Map.has_key?(data, "expiration") do
-        {:ok, cooldown_end, _}  = DateTime.from_iso8601(data["expiration"])
+        {:ok, cooldown_end, _} = DateTime.from_iso8601(data["expiration"])
 
         {:some, cooldown_end}
       else
         :none
       end
+    end
+  end
+
+  @spec latest_wait_end(map()) :: {:some, DateTime.t()} | :none
+  def latest_wait_end(data) do
+    transit_end = transit_end(data)
+    cooldown_end = cooldown_end(data)
+
+    case {transit_end, cooldown_end} do
+      {{:some, t_end}, {:some, c_end}} ->
+        if DateTime.after?(t_end, c_end) do
+          {:some, t_end}
+        else
+          {:some, c_end}
+        end
+
+      {{:some, t_end}, :none} ->
+        {:some, t_end}
+
+      {:none, {:some, c_end}} ->
+        {:some, c_end}
+
+      {:none, :none} ->
+        :none
     end
   end
 
@@ -243,26 +271,18 @@ defmodule Spacetraders.Cooldown do
   end
 
   def cooldown_ms(data) do
-    transit_end = transit_end(data)
-
-    cooldown_end = cooldown_end(data)
+    latest_end = latest_wait_end(data)
 
     now = DateTime.now!("Etc/UTC")
 
-    transit_cd = case transit_end do
-      {:some, e} -> DateTime.diff(e, now, :millisecond)
-      :none -> 0
+    cd = with {:some, l_end} <- latest_end do
+      DateTime.diff(l_end, now) 
+    else
+      _ -> 0
     end
-    
-    cooldown_cd = case cooldown_end do
-      {:some, e} -> DateTime.diff(e, now, :millisecond)
-      :none -> 0
-    end
-
-    cd = max(transit_cd, cooldown_cd)
 
     if cd > 0 do
-      cd + 100 
+      cd + 100
     else
       0
     end

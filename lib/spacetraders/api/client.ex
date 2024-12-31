@@ -159,6 +159,12 @@ defmodule Spacetraders.API.Client do
     })
   end
 
+  def patch_nav(ship, flight_mode) do
+    patch("/my/ships/#{ship}/nav", %{
+      flightMode: flight_mode
+    })
+  end
+
   defp waypoint_url(waypoint) do
     system = Spacetraders.API.extract_system(waypoint)
 
