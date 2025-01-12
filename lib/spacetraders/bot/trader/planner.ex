@@ -43,7 +43,7 @@ defmodule Spacetraders.Bot.Trader.Planner do
         trade["tradeVolume"]
       end
 
-      @spec buy_price(t()) :: number()
+      @spec sell_price(t()) :: number()
       def sell_price(%TradeRoute{} = route) do
         {:some, market} = Spacetraders.Market.get(route.to)
 
