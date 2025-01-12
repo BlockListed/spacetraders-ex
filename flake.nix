@@ -10,7 +10,7 @@
             in
             {
                 devShells.default = pkgs.mkShellNoCC {
-                    packages = [ pkgs.elixir_1_18 pkgs.git ];
+                    packages = [ pkgs.elixir_1_18 pkgs.elixir-ls pkgs.git pkgs.tmux ];
                 };
             }
         );
