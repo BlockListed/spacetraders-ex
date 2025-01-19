@@ -10,7 +10,12 @@
             in
             {
                 devShells.default = pkgs.mkShellNoCC {
-                    packages = [ pkgs.elixir_1_18 pkgs.elixir-ls pkgs.git pkgs.tmux ];
+                    packages = [ pkgs.elixir_1_18 pkgs.elixir-ls pkgs.git ];
+
+                    # needed for tmux
+                    shellHook = ''
+                        export SHELL=${pkgs.bashInteractive}/bin/bash
+                    '';
                 };
             }
         );
