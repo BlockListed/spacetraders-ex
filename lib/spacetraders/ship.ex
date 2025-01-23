@@ -18,6 +18,43 @@ defmodule Spacetraders.Ship do
   defmodule State do
     @enforce_keys [:ship, :nav, :cargo]
     defstruct [:ship, :nav, :cargo, cooldown_end: nil]
+
+    @type t :: %__MODULE__{ship: String.t(), nav: any(), cargo: Cargo.t(), cooldown_end: DateTime.t()}
+
+    defmodule Cargo do
+      @enforce_keys [:units, :capacity, :inventory]
+      defstruct [:units, :capacity, :inventory]
+
+      @type t :: %__MODULE__{units: integer(), capacity: integer(), inventory: map()}
+
+      @spec from_cargo(map()) :: t()
+      def from_cargo(cargo) do
+        units = cargo["units"] 
+        capacity = cargo["capacity"]
+        inventory = Enum.reduce(cargo["inventory"], %{}, fn i, acc ->
+          # assertion
+          false = Map.has_key?(acc, i["symbol"])
+
+          Map.put(acc, i["symbol"], i["units"])
+        end)
+
+        %Cargo{units: units, capacity: capacity, inventory: inventory}
+      end
+
+      def update_cargo(cargo=%Cargo{}, symbol, units) do
+        cargo = %{cargo | units: cargo.units + units}
+
+        cargo = %{cargo | inventory: Map.update(cargo.inventory, symbol, units, &(&1 + units))}
+
+        cargo
+      end
+    end
+
+    def new_cargo(data, cargo) do
+      new_cargo = Cargo.from_cargo(cargo)
+
+      %{data | cargo: new_cargo}
+    end
   end
 
   def callback_mode() do
@@ -44,30 +81,28 @@ defmodule Spacetraders.Ship do
   def init(ship) do
     {:ok, ship_data} = API.get_ship(ship)
 
-    cargo = ship_data["cargo"]
+    cargo = State.Cargo.from_cargo(ship_data["cargo"])
 
     nav = ship_data["nav"]
 
     state = %State{ship: ship, nav: nav, cargo: cargo}
 
-    case Cooldown.transit_end(ship_data) do
-      {:some, transit_end} ->
-        state = %State{state | cooldown_end: transit_end}
-        cd_time = Cooldown.ms_until(transit_end)
+    transit_end = Cooldown.transit_end(ship_data)
 
-        {:ok, :transit, state, [{:state_timeout, cd_time, :arrived}]}
+    cooldown_end = Cooldown.cooldown_end(ship_data)
 
-      :none ->
-        case Cooldown.cooldown_end(ship_data) do
-          {:some, cooldown_end} ->
-            state = %State{state | cooldown_end: cooldown_end}
-            cd_time = Cooldown.ms_until(cooldown_end)
+    case {transit_end, cooldown_end} do
+      {{:some, t_end}, {:some, c_end}} ->
+        {:ok, :transit, state, [{:state_timeout, Enum.max([t_end, c_end], &DateTime.after?/2)}]}
 
-            {:ok, :cooldown, state, [{:state_timeout, cd_time, :elapsed}]}
+      {{:some, t_end}, :none} ->
+        {:ok, :transit, state, [{:state_timeout, t_end}]}
 
-          :none ->
-            {:ok, :normal, state}
-        end
+      {:none, {:some, c_end}} ->
+        {:ok, :cooldown, state, [{:state_timeout, c_end}]}
+
+      {:none, :none} ->
+        {:ok, :normal, state}
     end
   end
 
@@ -159,7 +194,7 @@ defmodule Spacetraders.Ship do
 
       cd = Cooldown.cooldown_end(res)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       cooldown_and_reply(data, from, res, cd)
     else
@@ -173,7 +208,7 @@ defmodule Spacetraders.Ship do
 
       cd = Cooldown.cooldown_end(res)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       cooldown_and_reply(data, from, res, cd)
     else
@@ -187,7 +222,7 @@ defmodule Spacetraders.Ship do
 
       cd = Cooldown.cooldown_end(res)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       cooldown_and_reply(data, from, res, cd)
     else
@@ -199,7 +234,7 @@ defmodule Spacetraders.Ship do
     if state in [:normal, :cooldown] do
       {:ok, res} = API.jettison_cargo(data.ship, symbol, units)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       {:keep_state, data, [{:reply, from, res}]}
     else
@@ -247,7 +282,7 @@ defmodule Spacetraders.Ship do
     if state in [:normal, :cooldown] do
       {:ok, res} = API.sell_cargo(data.ship, symbol, units)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       {:keep_state, data, [{:reply, from, res}]}
     else
@@ -259,7 +294,7 @@ defmodule Spacetraders.Ship do
     if state in [:normal, :cooldown] do
       {:ok, res} = API.purchase_cargo(data.ship, symbol, units)
 
-      data = %{data | cargo: res["cargo"]}
+      data = State.new_cargo(data, res["cargo"])
 
       {:keep_state, data, [{:reply, from, res}]}
     else
@@ -276,12 +311,18 @@ defmodule Spacetraders.Ship do
       {:keep_state_and_data, [:postpone]}
     end
   end
-  
+
   def handle_event({:call, from}, {:transfer, from_ship, to_ship, symbol, units}, state, data) do
     if state in [:normal, :cooldown] do
       raise "Unimplemented"
     else
       {:keep_state_and_data, [:postpone]}
     end
+  end
+
+  def handle_event(:cast, {:update_cargo, symbol, units}, _state, data) do
+    cargo = State.Cargo.update_cargo(data.cargo, symbol, units)
+
+    %{data | cargo: cargo}
   end
 end
